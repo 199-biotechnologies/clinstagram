@@ -140,6 +140,35 @@ class TestPrivateBackendAnalyticsProfile:
         assert result["media_count"] == 50
 
 
+class TestPrivateBackendUserPosts:
+    """Test user_posts calls user_medias with correct args."""
+
+    def test_user_posts_returns_media_list(self):
+        mock_client = MagicMock()
+        user_info = MagicMock()
+        user_info.pk = "99999"
+        mock_client.user_info_by_username.return_value = user_info
+
+        media1 = MagicMock()
+        media1.pk = 111
+        media1.code = "ABC"
+        media1.media_type = 1
+        media1.caption_text = "Test caption"
+        media1.taken_at = None
+        media1.like_count = 10
+        media1.comment_count = 5
+        mock_client.user_medias.return_value = [media1]
+
+        backend = PrivateBackend(client=mock_client)
+        result = backend.user_posts("testuser", limit=10)
+
+        mock_client.user_info_by_username.assert_called_once_with("testuser")
+        mock_client.user_medias.assert_called_once_with(99999, amount=10)
+        assert len(result) == 1
+        assert result[0]["code"] == "ABC"
+        assert result[0]["like_count"] == 10
+
+
 class TestBackendCannotBeInstantiated:
     def test_abstract_class_raises(self):
         with pytest.raises(TypeError):

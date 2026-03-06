@@ -141,6 +141,7 @@ clinstagram --json --enable-growth-actions followers unfollow @user
 ```bash
 clinstagram --json user info @username
 clinstagram --json user search "john doe"
+clinstagram --json user posts @username --limit 10
 ```
 
 ### Config
@@ -266,9 +267,9 @@ The router **always prefers official APIs**. Private API is only used when:
 graph_dm_per_hour = 200       # Meta's hard limit
 private_dm_per_hour = 30      # Conservative default
 private_follows_per_day = 20  # Well below Instagram's threshold
-request_delay_min = 2.0       # Seconds between private API calls
-request_delay_max = 5.0
-request_jitter = true         # Gaussian distribution, not uniform
+request_delay_min = 2.0       # Seconds between private API write calls
+request_delay_max = 5.0       # Read-only ops use [0, delay_min] for speed
+request_jitter = true         # Randomized within delay range
 ```
 
 ## Development
@@ -277,7 +278,7 @@ request_jitter = true         # Gaussian distribution, not uniform
 git clone https://github.com/199-biotechnologies/clinstagram.git
 cd clinstagram
 pip install -e ".[dev]"
-pytest tests/ -v   # 111 tests
+pytest tests/ -v   # 120 tests
 ```
 
 ## License

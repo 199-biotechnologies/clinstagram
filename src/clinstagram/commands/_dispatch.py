@@ -74,10 +74,12 @@ def _instantiate_backend(ctx: typer.Context, backend_name: str, feature: Feature
             cl.set_proxy(proxy)
             
         from clinstagram.backends.capabilities import READ_ONLY_FEATURES
+        config = ctx.obj["config"]
+        rl = config.rate_limits
         if feature in READ_ONLY_FEATURES:
-            cl.delay_range = [0, 1]
+            cl.delay_range = [0, rl.request_delay_min]
         else:
-            cl.delay_range = [1, 3]
+            cl.delay_range = [rl.request_delay_min, rl.request_delay_max]
             
         return PrivateBackend(client=cl)
 
