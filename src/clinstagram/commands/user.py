@@ -24,3 +24,13 @@ def search(
 ):
     """Search for users by name or username."""
     dispatch(ctx, Feature.USER_SEARCH, lambda b: b.user_search(query))
+
+
+@user_app.command("posts")
+def posts(
+    ctx: typer.Context,
+    username: str = typer.Argument(..., help="Username to look up (with or without @)"),
+    limit: int = typer.Option(20, "--limit", help="Number of posts to list"),
+):
+    """List a user's recent media."""
+    dispatch(ctx, Feature.USER_POSTS, lambda b: b.user_posts(strip_at(username), limit=limit))

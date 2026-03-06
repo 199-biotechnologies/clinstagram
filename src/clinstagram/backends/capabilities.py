@@ -41,6 +41,7 @@ class Feature(str, Enum):
     # User
     USER_INFO = "user_info"
     USER_SEARCH = "user_search"
+    USER_POSTS = "user_posts"
 
 
 CAPABILITY_MATRIX: dict[str, set[Feature]] = {
@@ -69,7 +70,7 @@ READ_ONLY_FEATURES: set[Feature] = {
     Feature.COMMENTS_LIST,
     Feature.ANALYTICS_PROFILE, Feature.ANALYTICS_POST, Feature.ANALYTICS_HASHTAG,
     Feature.FOLLOWERS_LIST, Feature.FOLLOWERS_FOLLOWING,
-    Feature.USER_INFO, Feature.USER_SEARCH,
+    Feature.USER_INFO, Feature.USER_SEARCH, Feature.USER_POSTS,
 }
 
 GROWTH_ACTIONS: set[Feature] = {Feature.FOLLOW, Feature.UNFOLLOW}

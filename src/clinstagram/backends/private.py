@@ -416,3 +416,11 @@ class PrivateBackend(Backend):
             return [_user_to_dict(u) for u in users]
         except Exception as exc:
             raise _wrap_error("user_search", exc)
+
+    def user_posts(self, username: str, limit: int = 20) -> list[dict]:
+        try:
+            user_id = self._user_id_from_username(username)
+            medias = self._cl.user_medias(int(user_id), amount=limit)
+            return [_media_to_dict(m) for m in medias]
+        except Exception as exc:
+            raise _wrap_error("user_posts", exc)

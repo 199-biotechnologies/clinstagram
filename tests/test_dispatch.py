@@ -170,7 +170,7 @@ class TestMockedExecution:
             "comments_list", "comments_reply", "comments_delete",
             "analytics_profile", "analytics_post", "analytics_hashtag",
             "followers_list", "followers_following", "follow", "unfollow",
-            "user_info", "user_search",
+            "user_info", "user_search", "user_posts",
         ]:
             getattr(mock_backend, method).return_value = backend_result
 
@@ -181,7 +181,7 @@ class TestMockedExecution:
         )
         monkeypatch.setattr(
             "clinstagram.commands._dispatch._instantiate_backend",
-            lambda ctx, name: mock_backend,
+            lambda ctx, name, feature=None: mock_backend,
         )
         return mock_backend
 

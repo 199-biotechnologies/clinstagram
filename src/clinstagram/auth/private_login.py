@@ -150,7 +150,7 @@ def _configure_client(client: Any, config: LoginConfig) -> None:
 def _validate_session(client: Any) -> bool:
     """Check if the current session is still valid by hitting a lightweight endpoint."""
     try:
-        client.get_timeline_feed()
+        client.account_info()
         return True
     except Exception:
         return False

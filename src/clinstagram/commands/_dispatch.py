@@ -39,7 +39,7 @@ def _get_router(ctx: typer.Context) -> Router:
     )
 
 
-def _instantiate_backend(ctx: typer.Context, backend_name: str) -> Backend:
+def _instantiate_backend(ctx: typer.Context, backend_name: str, feature: Feature) -> Backend:
     """Create the appropriate Backend instance from stored credentials."""
     import httpx
 
@@ -72,7 +72,13 @@ def _instantiate_backend(ctx: typer.Context, backend_name: str) -> Backend:
         proxy = ctx.obj.get("proxy")
         if proxy:
             cl.set_proxy(proxy)
-        cl.delay_range = [1, 3]
+            
+        from clinstagram.backends.capabilities import READ_ONLY_FEATURES
+        if feature in READ_ONLY_FEATURES:
+            cl.delay_range = [0, 1]
+        else:
+            cl.delay_range = [1, 3]
+            
         return PrivateBackend(client=cl)
 
     raise ValueError(f"Unknown backend: {backend_name}")
@@ -161,7 +167,7 @@ def dispatch(
         return
 
     try:
-        backend = _instantiate_backend(ctx, backend_name)
+        backend = _instantiate_backend(ctx, backend_name, feature)
     except Exception as exc:
         _output_error(ctx, CLIError(
             exit_code=ExitCode.AUTH_ERROR,

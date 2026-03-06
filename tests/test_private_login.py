@@ -90,7 +90,7 @@ class TestValidateSession:
 
     def test_invalid(self):
         client = MagicMock()
-        client.get_timeline_feed.side_effect = RuntimeError("401")
+        client.account_info.side_effect = RuntimeError("401")
         assert _validate_session(client) is False
 
 

@@ -93,3 +93,6 @@ class Backend(ABC):
 
     @abstractmethod
     def user_search(self, query: str) -> list[dict]: ...
+
+    @abstractmethod
+    def user_posts(self, username: str, limit: int = 20) -> list[dict]: ...

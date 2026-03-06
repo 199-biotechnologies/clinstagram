@@ -380,3 +380,13 @@ class GraphBackend(Backend):
             return [info] if info else []
         except GraphAPIError:
             return []
+
+    def user_posts(self, username: str, limit: int = 20) -> list[dict]:
+        me = self._me_id()
+        params = {
+            "fields": f"business_discovery.fields(media.limit({limit}){{id,caption,media_type,media_url,timestamp,like_count,comments_count}}).username({username})",
+        }
+        data = self._get(me, params)
+        business = data.get("business_discovery", {})
+        media = business.get("media", {})
+        return media.get("data", [])
