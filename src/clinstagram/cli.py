@@ -1,51 +1,99 @@
-import typer
+from __future__ import annotations
+
+import os
+import sys
+from pathlib import Path
 from typing import Optional
-from enum import Enum
-from rich.console import Console
 
-console = Console()
-app = typer.Typer(help="Hybrid Instagram CLI for OpenClaw (Graph + Private API)")
+import typer
 
-class Backend(str, Enum):
-    AUTO = "auto"
-    GRAPH = "graph"
-    PRIVATE = "private"
+from clinstagram import __version__
+from clinstagram.config import BackendType, load_config
+
+app = typer.Typer(
+    name="clinstagram",
+    help="Hybrid Instagram CLI for OpenClaw — Graph API + Private API",
+    no_args_is_help=True,
+    context_settings={"allow_interspersed_args": True},
+)
+
+
+def _version_callback(value: bool):
+    if value:
+        typer.echo(f"clinstagram {__version__}")
+        raise typer.Exit()
+
+
+def _resolve_config_dir() -> Optional[Path]:
+    env = os.environ.get("CLINSTAGRAM_CONFIG_DIR")
+    return Path(env) if env else None
+
 
 @app.callback()
 def main(
     ctx: typer.Context,
-    json: bool = typer.Option(False, "--json", help="Output as JSON"),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
     account: str = typer.Option("default", "--account", help="Account name"),
-    backend: Backend = typer.Option(Backend.AUTO, "--backend", help="Force specific backend"),
+    backend: BackendType = typer.Option(BackendType.AUTO, "--backend", help="Force backend"),
+    proxy: Optional[str] = typer.Option(None, "--proxy", help="Proxy URL for private API"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would happen"),
-    verbose: bool = typer.Option(False, "--verbose", help="Debug logging")
+    verbose: bool = typer.Option(False, "--verbose", help="Debug logging"),
+    no_color: bool = typer.Option(False, "--no-color", help="Disable color output"),
+    enable_growth: bool = typer.Option(
+        False, "--enable-growth-actions", help="Unlock follow/unfollow"
+    ),
+    version: bool = typer.Option(
+        False, "--version", callback=_version_callback, is_eager=True
+    ),
 ):
-    """
-    Clinstagram: Hybrid Instagram CLI for OpenClaw.
-    Automatically routes between official Meta Graph API and Private API (instagrapi).
-    """
-    ctx.obj = {
-        "json": json,
-        "account": account,
-        "backend": backend,
-        "dry_run": dry_run,
-        "verbose": verbose
-    }
+    config_dir = _resolve_config_dir()
+    if not json_output and not sys.stdout.isatty():
+        json_output = True
+    ctx.ensure_object(dict)
+    ctx.obj["json"] = json_output
+    ctx.obj["account"] = account
+    ctx.obj["backend"] = backend
+    ctx.obj["proxy"] = proxy
+    ctx.obj["dry_run"] = dry_run
+    ctx.obj["verbose"] = verbose
+    ctx.obj["no_color"] = no_color
+    ctx.obj["enable_growth"] = enable_growth
+    ctx.obj["config_dir"] = config_dir
+    ctx.obj["config"] = load_config(config_dir)
+    # Use memory-backed secrets when config dir is overridden (tests/CI)
+    if config_dir is not None:
+        from clinstagram.auth.keychain import SecretsStore
 
-# Command Groups (Phase 1 placeholders)
-auth_app = typer.Typer(help="Manage authentication (Graph & Private)")
+        ctx.obj["secrets"] = SecretsStore(backend="memory")
+
+
+# Register command groups
+from clinstagram.commands.auth import auth_app  # noqa: E402
+from clinstagram.commands.config_cmd import config_app  # noqa: E402
+
 app.add_typer(auth_app, name="auth")
+app.add_typer(config_app, name="config")
 
-post_app = typer.Typer(help="Post photos, videos, and reels")
-app.add_typer(post_app, name="post")
 
-dm_app = typer.Typer(help="Manage direct messages")
-app.add_typer(dm_app, name="dm")
+# Placeholder groups for future phases
+def _make_placeholder(group_help: str) -> typer.Typer:
+    sub = typer.Typer(help=group_help)
 
-@auth_app.command("status")
-def auth_status(ctx: typer.Context):
-    """Show authentication status for the current account."""
-    typer.echo(f"Checking status for account: {ctx.obj['account']}...")
+    @sub.command("help")
+    def _placeholder(ctx: typer.Context):
+        """Coming in a future phase."""
+        typer.echo("Commands for this group are not yet implemented.")
 
-if __name__ == "__main__":
-    app()
+    return sub
+
+
+for _name, _help in [
+    ("post", "Post photos, videos, reels"),
+    ("dm", "Manage direct messages"),
+    ("story", "Manage stories"),
+    ("comments", "Manage comments"),
+    ("analytics", "View analytics"),
+    ("followers", "Manage followers"),
+    ("user", "User lookup"),
+]:
+    app.add_typer(_make_placeholder(_help), name=_name)
