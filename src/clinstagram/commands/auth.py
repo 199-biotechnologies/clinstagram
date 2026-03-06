@@ -66,16 +66,16 @@ def connect_fb(ctx: typer.Context):
 @auth_app.command("login")
 def login(
     ctx: typer.Context,
-    username: str = typer.Option(..., "--username", "-u", prompt=True, help="Instagram username"),
-    password: Optional[str] = typer.Option(None, "--password", "-p", help="Instagram password"),
+    username: str = typer.Option(..., "--username", "-u", prompt=True, help="Instagram username, email, or phone number"),
+    password: Optional[str] = typer.Option(None, "--password", "-p", help="Instagram password (prompted if needed)"),
     totp_seed: str = typer.Option("", "--totp-seed", help="TOTP seed for 2FA (base32)"),
     proxy: str = typer.Option("", "--proxy", help="Proxy URL (recommended for private API)"),
-    locale: str = typer.Option("en_US", "--locale", help="Locale for Instagram (e.g. en_US, pt_BR)"),
-    timezone: str = typer.Option("0", "--timezone", help="Timezone offset in seconds (e.g. -10800)"),
+    locale: str = typer.Option("", "--locale", help="Locale (e.g. en_GB, pt_BR). Auto-detected if omitted"),
+    timezone: str = typer.Option("", "--timezone", help="Timezone offset in seconds (e.g. 0). Auto-detected if omitted"),
     delay_min: int = typer.Option(1, "--delay-min", help="Min delay between actions (seconds)"),
     delay_max: int = typer.Option(3, "--delay-max", help="Max delay between actions (seconds)"),
 ):
-    """Login via Private API (instagrapi). Username/password/2FA."""
+    """Login via Private API (instagrapi). Accepts username, email, or phone."""
     from clinstagram.auth.private_login import LoginConfig, login_private
 
     account = ctx.obj["account"]

@@ -27,7 +27,7 @@ Every Instagram automation tool makes you choose: **official API** (safe but lim
 ```bash
 # This command automatically routes through the official Graph API
 # if you have a Business account, or falls back to private API if not
-$ clinstagram dm inbox --json
+$ clinstagram --json dm inbox
 [{"thread_id": "839201", "username": "alice", "last_message": "hey!", "unread": true, "backend_used": "graph_fb"}]
 ```
 
@@ -59,22 +59,23 @@ clinstagram --version
 ## Quick Start
 
 ```bash
-# 1. Check what's configured
+# 1. Login (username, email, or phone — locale auto-detected from your system)
+clinstagram auth login -u your_username
+
+# 2. Check what's configured
 clinstagram auth status
 
-# 2. Connect your account (pick one or all)
-clinstagram auth connect-ig    # Instagram Login → posting, comments, analytics
-clinstagram auth connect-fb    # Facebook Login → adds DMs, webhooks, stories
-clinstagram auth login         # Private API → everything (username/password/2FA)
-
-# 3. Set your safety level
-clinstagram config mode hybrid-safe   # Default: official API + private read-only
-
-# 4. Use it
-clinstagram dm inbox --json
-clinstagram post photo cat.jpg --caption "via clinstagram" --json
-clinstagram analytics profile --json
+# 3. Use it
+clinstagram --json dm inbox
+clinstagram --json analytics profile
+clinstagram --json post photo cat.jpg --caption "via clinstagram"
 ```
+
+> **Important:** `--json`, `--proxy`, and `--account` are **global flags** — they go **before** the command:
+> ```bash
+> clinstagram --json dm inbox          # correct
+> clinstagram dm inbox --json          # WRONG — will error
+> ```
 
 ## Commands
 
@@ -83,68 +84,68 @@ clinstagram analytics profile --json
 clinstagram auth status          # Show which backends are active
 clinstagram auth connect-ig      # OAuth via Instagram Login
 clinstagram auth connect-fb      # OAuth via Facebook Login (enables DMs)
-clinstagram auth login           # Private API login (username/password/2FA)
+clinstagram auth login -u user   # Private API (username, email, or phone)
 clinstagram auth probe           # Test all backends, report capabilities
 clinstagram auth logout --yes    # Clear all stored sessions
 ```
 
 ### Post
 ```bash
-clinstagram post photo <path|url> --caption "..." --tags "@user" --json
-clinstagram post video <path|url> --caption "..." --json
-clinstagram post reel <path|url> --caption "..." --json
-clinstagram post carousel img1.jpg img2.jpg --caption "..." --json
+clinstagram --json post photo <path|url> --caption "..." --tags "@user"
+clinstagram --json post video <path|url> --caption "..."
+clinstagram --json post reel <path|url> --caption "..."
+clinstagram --json post carousel img1.jpg img2.jpg --caption "..."
 ```
 
 ### Direct Messages
 ```bash
-clinstagram dm inbox --unread --limit 10 --json
-clinstagram dm thread @alice --limit 20 --json
-clinstagram dm send @alice "Thanks for reaching out!" --json
-clinstagram dm send-media @alice photo.jpg --json
-clinstagram dm search "project" --json
+clinstagram --json dm inbox --unread --limit 10
+clinstagram --json dm thread @alice --limit 20
+clinstagram --json dm send @alice "Thanks for reaching out!"
+clinstagram --json dm send-media @alice photo.jpg
+clinstagram --json dm search "project"
 ```
 
 ### Stories
 ```bash
-clinstagram story list --json
-clinstagram story list @alice --json
-clinstagram story post-photo photo.jpg --mention @alice --json
-clinstagram story post-video clip.mp4 --link "https://..." --json
-clinstagram story viewers <story_id> --json
+clinstagram --json story list
+clinstagram --json story list @alice
+clinstagram --json story post-photo photo.jpg --mention @alice
+clinstagram --json story post-video clip.mp4 --link "https://..."
+clinstagram --json story viewers <story_id>
 ```
 
 ### Comments
 ```bash
-clinstagram comments list <media_id> --limit 50 --json
-clinstagram comments reply <comment_id> "Great point!" --json
-clinstagram comments delete <comment_id> --json
+clinstagram --json comments list <media_id> --limit 50
+clinstagram --json comments reply <comment_id> "Great point!"
+clinstagram --json comments delete <comment_id>
 ```
 
 ### Analytics
 ```bash
-clinstagram analytics profile --json
-clinstagram analytics post <media_id> --json
-clinstagram analytics hashtag "photography" --json
+clinstagram --json analytics profile
+clinstagram --json analytics post <media_id>
+clinstagram --json analytics hashtag "photography"
 ```
 
 ### Followers
 ```bash
-clinstagram followers list --limit 100 --json
-clinstagram followers following --json
-clinstagram followers follow @user --enable-growth-actions --json   # Disabled by default
-clinstagram followers unfollow @user --enable-growth-actions --json
+clinstagram --json followers list --limit 100
+clinstagram --json followers following
+clinstagram --json --enable-growth-actions followers follow @user    # Disabled by default
+clinstagram --json --enable-growth-actions followers unfollow @user
 ```
 
 ### User
 ```bash
-clinstagram user info @username --json
-clinstagram user search "john doe" --json
+clinstagram --json user info @username
+clinstagram --json user search "john doe"
 ```
 
 ### Config
 ```bash
-clinstagram config show --json
+clinstagram --json config show
 clinstagram config mode official-only     # Zero risk
 clinstagram config mode hybrid-safe       # Official + private read-only (default)
 clinstagram config mode private-enabled   # Full access
@@ -152,6 +153,8 @@ clinstagram config set proxy socks5://localhost:1080
 ```
 
 ## Global Flags
+
+Global flags go **before** the command name.
 
 | Flag | Description |
 |------|-------------|

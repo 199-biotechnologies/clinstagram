@@ -16,6 +16,52 @@ logger = logging.getLogger(__name__)
 # Default action delays (seconds) — reduces detection risk
 DEFAULT_DELAY_RANGE = [1, 3]
 
+# Locale → (country_code, country) for common Instagram locales
+_LOCALE_MAP = {
+    "en_US": (1, "US"),
+    "en_GB": (44, "GB"),
+    "en_AU": (61, "AU"),
+    "en_CA": (1, "CA"),
+    "pt_BR": (55, "BR"),
+    "es_ES": (34, "ES"),
+    "fr_FR": (33, "FR"),
+    "de_DE": (49, "DE"),
+    "it_IT": (39, "IT"),
+    "ja_JP": (81, "JP"),
+    "ko_KR": (82, "KR"),
+    "zh_CN": (86, "CN"),
+    "nl_NL": (31, "NL"),
+    "ru_RU": (7, "RU"),
+    "tr_TR": (90, "TR"),
+    "ar_SA": (966, "SA"),
+    "hi_IN": (91, "IN"),
+}
+
+
+def _detect_system_locale() -> str:
+    """Best-effort detection of system locale, fallback to en_US."""
+    import locale as _locale
+
+    try:
+        loc = _locale.getlocale()[0]
+        if loc and "_" in loc:
+            return loc
+    except Exception:
+        pass
+    return "en_US"
+
+
+def _locale_to_country(loc: str) -> tuple[int, str]:
+    """Map a locale string to (country_code, country_iso)."""
+    if loc in _LOCALE_MAP:
+        return _LOCALE_MAP[loc]
+    # Extract country from locale suffix (e.g. en_GB → GB)
+    parts = loc.split("_")
+    if len(parts) == 2:
+        country = parts[1].upper()
+        return (0, country)
+    return (0, "US")
+
 
 @dataclass
 class LoginResult:
@@ -35,8 +81,8 @@ class LoginConfig:
     proxy: str = ""
     delay_range: list[int] = field(default_factory=lambda: list(DEFAULT_DELAY_RANGE))
     challenge_handler: Optional[Callable[[str], str]] = None
-    locale: str = "en_US"
-    timezone: str = "UTC"
+    locale: str = ""  # Empty = auto-detect from system
+    timezone: str = ""  # Empty = auto-detect from system
     device_settings: dict[str, Any] = field(default_factory=dict)
 
 
@@ -60,16 +106,22 @@ def _configure_client(client: Any, config: LoginConfig) -> None:
     if config.device_settings:
         client.device_settings = config.device_settings
 
-    if config.locale:
-        client.set_locale(config.locale)
-        client.set_country_code(1 if config.locale.endswith("US") else 0)
-        client.set_country("US" if config.locale.endswith("US") else config.locale[-2:])
+    # Resolve locale — auto-detect if not provided
+    locale = config.locale or _detect_system_locale()
+    client.set_locale(locale)
+    country_code, country = _locale_to_country(locale)
+    client.set_country_code(country_code)
+    client.set_country(country)
 
+    # Resolve timezone — auto-detect if not provided
     if config.timezone:
         try:
             client.set_timezone_offset(int(config.timezone))
         except ValueError:
             client.set_timezone_offset(0)
+    else:
+        import time
+        client.set_timezone_offset(-time.timezone)
 
     if config.totp_seed:
         client.totp_seed = config.totp_seed
