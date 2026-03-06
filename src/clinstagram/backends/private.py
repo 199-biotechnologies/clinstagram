@@ -284,20 +284,26 @@ class PrivateBackend(Backend):
     def comments_list(self, media_id: str, limit: int = 50) -> list[dict]:
         try:
             comments = self._cl.media_comments(media_id, amount=limit)
-            return [_comment_to_dict(c) for c in comments]
+            results = []
+            for c in comments:
+                d = _comment_to_dict(c)
+                # Composite ID for CLI use: media_id:comment_id
+                d["id"] = f"{media_id}:{d['id']}"
+                results.append(d)
+            return results
         except Exception as exc:
             raise _wrap_error("comments_list", exc)
 
     def comments_reply(self, comment_id: str, text: str) -> dict:
         try:
-            # instagrapi expects media_id for comment creation;
-            # comment_id format is "media_id:comment_id" when passed from CLI
+            # instagrapi expects media_id and comment_id for threaded replies
             parts = comment_id.split(":", 1)
             if len(parts) == 2:
                 media_id, cid = parts
+                result = self._cl.comment_reply(media_id, int(cid), text)
             else:
-                media_id = comment_id
-            result = self._cl.media_comment(media_id, text)
+                # Fallback to top-level comment if only media_id is provided
+                result = self._cl.media_comment(comment_id, text)
             return _comment_to_dict(result)
         except Exception as exc:
             raise _wrap_error("comments_reply", exc)
@@ -424,3 +430,46 @@ class PrivateBackend(Backend):
             return [_media_to_dict(m) for m in medias]
         except Exception as exc:
             raise _wrap_error("user_posts", exc)
+
+    # ------------------------------------------------------------------
+    # Engagement
+    # ------------------------------------------------------------------
+
+    def like_post(self, media_id: str) -> dict:
+        try:
+            self._cl.media_like(media_id)
+            return {"media_id": media_id, "status": "liked"}
+        except Exception as exc:
+            raise _wrap_error("like_post", exc)
+
+    def unlike_post(self, media_id: str) -> dict:
+        try:
+            self._cl.media_unlike(media_id)
+            return {"media_id": media_id, "status": "unliked"}
+        except Exception as exc:
+            raise _wrap_error("unlike_post", exc)
+
+    def comments_add(self, media_id: str, text: str) -> dict:
+        try:
+            result = self._cl.media_comment(media_id, text)
+            return _comment_to_dict(result)
+        except Exception as exc:
+            raise _wrap_error("comments_add", exc)
+
+    # ------------------------------------------------------------------
+    # Hashtag browsing
+    # ------------------------------------------------------------------
+
+    def hashtag_top(self, tag: str, limit: int = 20) -> list[dict]:
+        try:
+            medias = self._cl.hashtag_medias_top(tag, amount=limit)
+            return [_media_to_dict(m) for m in medias]
+        except Exception as exc:
+            raise _wrap_error("hashtag_top", exc)
+
+    def hashtag_recent(self, tag: str, limit: int = 20) -> list[dict]:
+        try:
+            medias = self._cl.hashtag_medias_recent(tag, amount=limit)
+            return [_media_to_dict(m) for m in medias]
+        except Exception as exc:
+            raise _wrap_error("hashtag_recent", exc)

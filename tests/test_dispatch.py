@@ -152,6 +152,23 @@ class TestCommandHelp:
         assert "info" in result.output
         assert "search" in result.output
 
+    def test_like_help(self):
+        result = runner.invoke(app, ["like", "--help"])
+        assert result.exit_code == 0
+        assert "post" in result.output
+        assert "undo" in result.output
+
+    def test_hashtag_help(self):
+        result = runner.invoke(app, ["hashtag", "--help"])
+        assert result.exit_code == 0
+        assert "top" in result.output
+        assert "recent" in result.output
+
+    def test_comments_add_help(self):
+        result = runner.invoke(app, ["comments", "--help"])
+        assert result.exit_code == 0
+        assert "add" in result.output
+
 
 # ── Mocked backend execution ────────────────────────────────────────
 
@@ -171,6 +188,8 @@ class TestMockedExecution:
             "analytics_profile", "analytics_post", "analytics_hashtag",
             "followers_list", "followers_following", "follow", "unfollow",
             "user_info", "user_search", "user_posts",
+            "like_post", "unlike_post", "comments_add",
+            "hashtag_top", "hashtag_recent",
         ]:
             getattr(mock_backend, method).return_value = backend_result
 
@@ -295,3 +314,54 @@ class TestMockedExecution:
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["data"]["id"] == "456"
+
+    def test_like_post_success(self, monkeypatch, tmp_path):
+        self._mock_dispatch(monkeypatch, {"media_id": "m1", "status": "liked"})
+        env = {"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"}
+        # like requires private-enabled (private-only write feature)
+        runner.invoke(app, ["config", "mode", "private-enabled"], env=env)
+        result = runner.invoke(app, ["--enable-growth-actions", "--json", "like", "post", "m1"], env=env)
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["data"]["status"] == "liked"
+
+    def test_unlike_post_success(self, monkeypatch, tmp_path):
+        self._mock_dispatch(monkeypatch, {"media_id": "m1", "status": "unliked"})
+        env = {"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"}
+        runner.invoke(app, ["config", "mode", "private-enabled"], env=env)
+        result = runner.invoke(app, ["--enable-growth-actions", "--json", "like", "undo", "m1"], env=env)
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["data"]["status"] == "unliked"
+
+    def test_comments_add_success(self, monkeypatch, tmp_path):
+        self._mock_dispatch(monkeypatch, {"id": "c99", "text": "nice post!"})
+        result = runner.invoke(
+            app, ["--enable-growth-actions", "--json", "comments", "add", "media123", "nice post!"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["data"]["text"] == "nice post!"
+
+    def test_hashtag_top_success(self, monkeypatch, tmp_path):
+        posts = [{"id": "p1", "caption": "tagged"}]
+        self._mock_dispatch(monkeypatch, posts)
+        result = runner.invoke(
+            app, ["--json", "hashtag", "top", "longevity"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["data"][0]["id"] == "p1"
+
+    def test_hashtag_recent_success(self, monkeypatch, tmp_path):
+        posts = [{"id": "p2", "caption": "fresh"}]
+        self._mock_dispatch(monkeypatch, posts)
+        result = runner.invoke(
+            app, ["--json", "hashtag", "recent", "biotech"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["data"][0]["id"] == "p2"

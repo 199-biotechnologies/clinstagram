@@ -42,13 +42,22 @@ class Feature(str, Enum):
     USER_INFO = "user_info"
     USER_SEARCH = "user_search"
     USER_POSTS = "user_posts"
+    # Engagement
+    LIKE_POST = "like_post"
+    UNLIKE_POST = "unlike_post"
+    COMMENTS_ADD = "comments_add"
+    # Hashtag browsing
+    HASHTAG_TOP = "hashtag_top"
+    HASHTAG_RECENT = "hashtag_recent"
 
 
 CAPABILITY_MATRIX: dict[str, set[Feature]] = {
     "graph_ig": {
         Feature.POST_PHOTO, Feature.POST_VIDEO, Feature.POST_REEL, Feature.POST_CAROUSEL,
         Feature.COMMENTS_LIST, Feature.COMMENTS_REPLY, Feature.COMMENTS_DELETE,
+        Feature.COMMENTS_ADD,
         Feature.ANALYTICS_PROFILE, Feature.ANALYTICS_POST, Feature.ANALYTICS_HASHTAG,
+        Feature.HASHTAG_TOP, Feature.HASHTAG_RECENT,
         Feature.USER_INFO, Feature.USER_SEARCH,
     },
     "graph_fb": {
@@ -57,7 +66,9 @@ CAPABILITY_MATRIX: dict[str, set[Feature]] = {
         Feature.DM_LISTEN,
         Feature.STORY_POST,
         Feature.COMMENTS_LIST, Feature.COMMENTS_REPLY, Feature.COMMENTS_DELETE,
+        Feature.COMMENTS_ADD,
         Feature.ANALYTICS_PROFILE, Feature.ANALYTICS_POST, Feature.ANALYTICS_HASHTAG,
+        Feature.HASHTAG_TOP, Feature.HASHTAG_RECENT,
         Feature.USER_INFO, Feature.USER_SEARCH,
     },
     "private": set(Feature),
@@ -71,9 +82,13 @@ READ_ONLY_FEATURES: set[Feature] = {
     Feature.ANALYTICS_PROFILE, Feature.ANALYTICS_POST, Feature.ANALYTICS_HASHTAG,
     Feature.FOLLOWERS_LIST, Feature.FOLLOWERS_FOLLOWING,
     Feature.USER_INFO, Feature.USER_SEARCH, Feature.USER_POSTS,
+    Feature.HASHTAG_TOP, Feature.HASHTAG_RECENT,
 }
 
-GROWTH_ACTIONS: set[Feature] = {Feature.FOLLOW, Feature.UNFOLLOW}
+GROWTH_ACTIONS: set[Feature] = {
+    Feature.FOLLOW, Feature.UNFOLLOW,
+    Feature.LIKE_POST, Feature.UNLIKE_POST, Feature.COMMENTS_ADD
+}
 
 
 def can_backend_do(backend: str, feature: Feature) -> bool:

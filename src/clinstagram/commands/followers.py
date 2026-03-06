@@ -3,26 +3,10 @@ from __future__ import annotations
 import typer
 
 from clinstagram.backends.capabilities import Feature
-from clinstagram.commands._dispatch import dispatch, make_subgroup, strip_at
+from clinstagram.commands._dispatch import _require_growth, dispatch, make_subgroup, strip_at
 from clinstagram.models import CLIError, ExitCode
 
 followers_app = make_subgroup("Manage followers")
-
-
-def _require_growth(ctx: typer.Context) -> None:
-    """Abort if --enable-growth-actions was not passed."""
-    if not ctx.obj.get("enable_growth"):
-        err = CLIError(
-            exit_code=ExitCode.POLICY_BLOCKED,
-            error="Growth actions are disabled by default",
-            remediation="Add --enable-growth-actions flag",
-        )
-        if ctx.obj.get("json"):
-            typer.echo(err.to_json(), err=True)
-        else:
-            typer.echo("Error: Growth actions are disabled by default.")
-            typer.echo("Add --enable-growth-actions to enable follow/unfollow.")
-        raise typer.Exit(code=ExitCode.POLICY_BLOCKED)
 
 
 @followers_app.command("list")

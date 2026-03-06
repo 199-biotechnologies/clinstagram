@@ -3,7 +3,7 @@ from __future__ import annotations
 import typer
 
 from clinstagram.backends.capabilities import Feature
-from clinstagram.commands._dispatch import dispatch, make_subgroup
+from clinstagram.commands._dispatch import _require_growth, dispatch, make_subgroup
 
 comments_app = make_subgroup("Manage comments")
 
@@ -24,8 +24,21 @@ def reply(
     comment_id: str = typer.Argument(..., help="Comment ID to reply to"),
     text: str = typer.Argument(..., help="Reply text"),
 ):
-    """Reply to a comment."""
+    """Reply to a comment. Requires --enable-growth-actions."""
+    _require_growth(ctx)
     dispatch(ctx, Feature.COMMENTS_REPLY, lambda b: b.comments_reply(comment_id, text))
+
+
+@comments_app.command("add")
+def add(
+    ctx: typer.Context,
+    media_id: str = typer.Argument(..., help="Media ID to comment on"),
+    text: str = typer.Argument(..., help="Comment text"),
+):
+    """Comment on a post. Requires --enable-growth-actions."""
+    _require_growth(ctx)
+    dispatch(ctx, Feature.COMMENTS_ADD, lambda b: b.comments_add(media_id, text))
+
 
 
 @comments_app.command("delete")

@@ -120,6 +120,22 @@ def strip_at(username: str) -> str:
     return username.lstrip("@")
 
 
+def _require_growth(ctx: typer.Context) -> None:
+    """Abort if --enable-growth-actions was not passed."""
+    if not ctx.obj.get("enable_growth"):
+        err = CLIError(
+            exit_code=ExitCode.POLICY_BLOCKED,
+            error="Growth actions are disabled by default",
+            remediation="Add --enable-growth-actions flag",
+        )
+        if ctx.obj.get("json"):
+            typer.echo(err.to_json(), err=True)
+        else:
+            typer.echo("Error: Growth actions are disabled by default.")
+            typer.echo("Add --enable-growth-actions to enable follow/unfollow and automated engagement.")
+        raise typer.Exit(code=ExitCode.POLICY_BLOCKED)
+
+
 def stage(source: str, backend_name: str) -> str:
     """Resolve a media source (path or URL) for the given backend."""
     needs_url = backend_name.startswith("graph")

@@ -71,6 +71,8 @@ from clinstagram.commands.comments import comments_app  # noqa: E402
 from clinstagram.commands.config_cmd import config_app  # noqa: E402
 from clinstagram.commands.dm import dm_app  # noqa: E402
 from clinstagram.commands.followers import followers_app  # noqa: E402
+from clinstagram.commands.hashtag import hashtag_app  # noqa: E402
+from clinstagram.commands.like import like_app  # noqa: E402
 from clinstagram.commands.post import post_app  # noqa: E402
 from clinstagram.commands.story import story_app  # noqa: E402
 from clinstagram.commands.user import user_app  # noqa: E402
@@ -84,3 +86,5 @@ app.add_typer(comments_app, name="comments")
 app.add_typer(analytics_app, name="analytics")
 app.add_typer(followers_app, name="followers")
 app.add_typer(user_app, name="user")
+app.add_typer(like_app, name="like")
+app.add_typer(hashtag_app, name="hashtag")

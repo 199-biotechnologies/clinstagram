@@ -390,3 +390,57 @@ class GraphBackend(Backend):
         business = data.get("business_discovery", {})
         media = business.get("media", {})
         return media.get("data", [])
+
+    # ------------------------------------------------------------------
+    # Engagement
+    # ------------------------------------------------------------------
+
+    def like_post(self, media_id: str) -> dict:
+        raise NotImplementedError(
+            "The Graph API does not support liking posts. "
+            "Use --backend private for this feature."
+        )
+
+    def unlike_post(self, media_id: str) -> dict:
+        raise NotImplementedError(
+            "The Graph API does not support unliking posts. "
+            "Use --backend private for this feature."
+        )
+
+    def comments_add(self, media_id: str, text: str) -> dict:
+        result = self._post(f"{media_id}/comments", {"message": text})
+        return {"id": result["id"], "status": "commented"}
+
+    # ------------------------------------------------------------------
+    # Hashtag browsing
+    # ------------------------------------------------------------------
+
+    def hashtag_top(self, tag: str, limit: int = 20) -> list[dict]:
+        search = self._get("ig_hashtag_search", {"q": tag})
+        results = search.get("data", [])
+        if not results:
+            return []
+        hashtag_id = results[0]["id"]
+        me = self._me_id()
+        params = {
+            "fields": "id,caption,media_type,media_url,timestamp,like_count,comments_count",
+            "user_id": me,
+            "limit": str(limit),
+        }
+        data = self._get(f"{hashtag_id}/top_media", params)
+        return data.get("data", [])
+
+    def hashtag_recent(self, tag: str, limit: int = 20) -> list[dict]:
+        search = self._get("ig_hashtag_search", {"q": tag})
+        results = search.get("data", [])
+        if not results:
+            return []
+        hashtag_id = results[0]["id"]
+        me = self._me_id()
+        params = {
+            "fields": "id,caption,media_type,media_url,timestamp,like_count,comments_count",
+            "user_id": me,
+            "limit": str(limit),
+        }
+        data = self._get(f"{hashtag_id}/recent_media", params)
+        return data.get("data", [])

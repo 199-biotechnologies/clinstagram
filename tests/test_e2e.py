@@ -44,7 +44,7 @@ def test_version_flag():
 
 
 def test_placeholder_commands():
-    """Future command groups show help, not crash."""
-    for group in ["post", "dm", "story", "comments", "analytics", "followers", "user"]:
+    """All command groups show help, not crash."""
+    for group in ["post", "dm", "story", "comments", "analytics", "followers", "user", "like", "hashtag"]:
         result = runner.invoke(app, [group, "--help"])
         assert result.exit_code == 0

@@ -169,6 +169,100 @@ class TestPrivateBackendUserPosts:
         assert result[0]["like_count"] == 10
 
 
+class TestPrivateBackendLikePost:
+    def test_like_post_calls_media_like(self):
+        mock_client = MagicMock()
+        backend = PrivateBackend(client=mock_client)
+        result = backend.like_post("media123")
+        mock_client.media_like.assert_called_once_with("media123")
+        assert result["status"] == "liked"
+
+    def test_unlike_post_calls_media_unlike(self):
+        mock_client = MagicMock()
+        backend = PrivateBackend(client=mock_client)
+        result = backend.unlike_post("media123")
+        mock_client.media_unlike.assert_called_once_with("media123")
+        assert result["status"] == "unliked"
+
+
+class TestPrivateBackendCommentsAdd:
+    def test_comments_add_calls_media_comment(self):
+        mock_client = MagicMock()
+        comment = MagicMock()
+        comment.pk = 555
+        comment.text = "great post"
+        comment.user = None
+        comment.created_at_utc = None
+        mock_client.media_comment.return_value = comment
+        backend = PrivateBackend(client=mock_client)
+        result = backend.comments_add("media123", "great post")
+        mock_client.media_comment.assert_called_once_with("media123", "great post")
+        assert result["text"] == "great post"
+
+
+class TestPrivateBackendCommentsList:
+    def test_comments_list_returns_composite_ids(self):
+        mock_client = MagicMock()
+        comment = MagicMock()
+        comment.pk = 123
+        comment.text = "hello"
+        comment.user = None
+        comment.created_at_utc = None
+        mock_client.media_comments.return_value = [comment]
+        
+        backend = PrivateBackend(client=mock_client)
+        result = backend.comments_list("media999", limit=10)
+        
+        mock_client.media_comments.assert_called_once_with("media999", amount=10)
+        assert len(result) == 1
+        assert result[0]["id"] == "media999:123"
+
+
+class TestPrivateBackendCommentsReply:
+    def test_comments_reply_calls_comment_reply(self):
+        mock_client = MagicMock()
+        comment = MagicMock()
+        comment.pk = 456
+        comment.text = "reply text"
+        comment.user = None
+        comment.created_at_utc = None
+        mock_client.comment_reply.return_value = comment
+        
+        backend = PrivateBackend(client=mock_client)
+        result = backend.comments_reply("media999:123", "reply text")
+        
+        mock_client.comment_reply.assert_called_once_with("media999", 123, "reply text")
+        assert result["text"] == "reply text"
+
+
+
+class TestPrivateBackendHashtagBrowsing:
+    def test_hashtag_top_calls_hashtag_medias_top(self):
+        mock_client = MagicMock()
+        media = MagicMock()
+        media.pk = 777
+        media.code = "XYZ"
+        media.media_type = 1
+        media.caption_text = "tagged"
+        media.taken_at = None
+        media.like_count = 50
+        media.comment_count = 3
+        mock_client.hashtag_medias_top.return_value = [media]
+        backend = PrivateBackend(client=mock_client)
+        result = backend.hashtag_top("longevity", limit=10)
+        mock_client.hashtag_medias_top.assert_called_once_with("longevity", amount=10)
+        assert len(result) == 1
+        assert result[0]["code"] == "XYZ"
+
+    def test_hashtag_recent_calls_hashtag_medias_recent(self):
+        mock_client = MagicMock()
+        mock_client.hashtag_medias_recent.return_value = []
+        backend = PrivateBackend(client=mock_client)
+        result = backend.hashtag_recent("biotech", limit=5)
+        mock_client.hashtag_medias_recent.assert_called_once_with("biotech", amount=5)
+        assert result == []
+
+
 class TestBackendCannotBeInstantiated:
     def test_abstract_class_raises(self):
         with pytest.raises(TypeError):

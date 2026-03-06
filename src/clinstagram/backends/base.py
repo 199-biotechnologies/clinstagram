@@ -96,3 +96,20 @@ class Backend(ABC):
 
     @abstractmethod
     def user_posts(self, username: str, limit: int = 20) -> list[dict]: ...
+
+    # Engagement
+    @abstractmethod
+    def like_post(self, media_id: str) -> dict: ...
+
+    @abstractmethod
+    def unlike_post(self, media_id: str) -> dict: ...
+
+    @abstractmethod
+    def comments_add(self, media_id: str, text: str) -> dict: ...
+
+    # Hashtag browsing
+    @abstractmethod
+    def hashtag_top(self, tag: str, limit: int = 20) -> list[dict]: ...
+
+    @abstractmethod
+    def hashtag_recent(self, tag: str, limit: int = 20) -> list[dict]: ...
