@@ -1,0 +1,27 @@
+[project]
+name = "clinstagram"
+version = "0.1.0"
+description = "Hybrid Instagram CLI for OpenClaw (Graph + Private API)"
+authors = [
+    { name = "OpenClaw Team", email = "team@openclaw.com" }
+]
+dependencies = [
+    "typer[all]>=0.12.0",
+    "httpx>=0.27.0",
+    "instagrapi>=2.3.0",
+    "rich>=13.7.0",
+    "tomli>=2.0.1",
+    "tomli-w>=1.0.0",
+    "pydantic>=2.6.0"
+]
+requires-python = ">=3.10"
+
+[project.scripts]
+clinstagram = "clinstagram.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/clinstagram"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
