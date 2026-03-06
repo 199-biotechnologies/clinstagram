@@ -35,11 +35,13 @@ No browser automation. No Playwright. No bot detection. Just structured CLI comm
 
 ## Install
 
+Requires **Python 3.10+**.
+
 ```bash
 pip install clinstagram
 ```
 
-Or from source:
+Or install from source (recommended for development):
 
 ```bash
 git clone https://github.com/199-biotechnologies/clinstagram.git
@@ -47,7 +49,12 @@ cd clinstagram
 pip install -e ".[dev]"
 ```
 
-Requires Python 3.10+.
+Verify it works:
+
+```bash
+clinstagram --version
+# clinstagram 0.1.0
+```
 
 ## Quick Start
 
@@ -96,7 +103,6 @@ clinstagram dm thread @alice --limit 20 --json
 clinstagram dm send @alice "Thanks for reaching out!" --json
 clinstagram dm send-media @alice photo.jpg --json
 clinstagram dm search "project" --json
-clinstagram dm listen --timeout 3600 --json   # JSONL stream of new messages
 ```
 
 ### Stories
@@ -119,7 +125,6 @@ clinstagram comments delete <comment_id> --json
 ```bash
 clinstagram analytics profile --json
 clinstagram analytics post <media_id> --json
-clinstagram analytics post latest --json
 clinstagram analytics hashtag "photography" --json
 ```
 
@@ -156,7 +161,6 @@ clinstagram config set proxy socks5://localhost:1080
 | `--proxy <url>` | SOCKS5/HTTP proxy for private API |
 | `--dry-run` | Preview without executing |
 | `--enable-growth-actions` | Unlock follow/unfollow |
-| `--verbose` | Debug logging |
 
 ## For Agents
 
@@ -234,9 +238,8 @@ The router **always prefers official APIs**. Private API is only used when:
 │ Comments │ Stories  │   + proxy support     │
 │ Analytics│ Webhooks │   + session persist   │
 ├──────────┴──────────┴───────────────────────┤
-│              State Layer                     │
-│   SQLite WAL: rate limits, user cache,       │
-│   thread mapping, audit log                  │
+│              Config Layer                    │
+│   TOML config, rate limits, compliance       │
 ├─────────────────────────────────────────────┤
 │              Secrets                         │
 │   OS Keychain (macOS/Linux/Windows)          │
@@ -250,8 +253,7 @@ The router **always prefers official APIs**. Private API is only used when:
 - **Graph DMs are reply-only** — Meta's Messaging API only works within a 24-hour window after the user messages you. Cold DMs require private API.
 - **Growth actions disabled by default** — `follow`/`unfollow` require `--enable-growth-actions` flag.
 - **Mandatory proxy for private API** — Protects against IP-based detection on cloud VPS.
-- **SQLite for state** — Rate limits, user ID cache, thread ID mapping between backends, audit log. Not flat JSON files.
-- **OS keychain for secrets** — No plaintext tokens on disk.
+- **OS keychain for secrets** — No plaintext tokens on disk. Sessions persisted in keychain with device UUID preservation.
 
 ## Rate Limits
 
@@ -272,19 +274,8 @@ request_jitter = true         # Gaussian distribution, not uniform
 git clone https://github.com/199-biotechnologies/clinstagram.git
 cd clinstagram
 pip install -e ".[dev]"
-pytest tests/ -v   # 45 tests
+pytest tests/ -v   # 111 tests
 ```
-
-### Project Status
-
-| Phase | Status |
-|-------|--------|
-| 1. Foundation (config, auth, router, state) | Done |
-| 2. Posting + Media Staging | In Progress |
-| 3. Direct Messages | Planned |
-| 4. Stories & Comments | Planned |
-| 5. Analytics & User | Planned |
-| 6. OpenClaw Packaging | Planned |
 
 ## License
 
