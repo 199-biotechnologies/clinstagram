@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Optional
 
 import typer
 from rich.console import Console
@@ -66,9 +67,11 @@ def connect_fb(ctx: typer.Context):
 def login(
     ctx: typer.Context,
     username: str = typer.Option(..., "--username", "-u", prompt=True, help="Instagram username"),
-    password: str = typer.Option(..., "--password", "-p", prompt=True, hide_input=True, help="Instagram password"),
+    password: Optional[str] = typer.Option(None, "--password", "-p", help="Instagram password"),
     totp_seed: str = typer.Option("", "--totp-seed", help="TOTP seed for 2FA (base32)"),
     proxy: str = typer.Option("", "--proxy", help="Proxy URL (recommended for private API)"),
+    locale: str = typer.Option("en_US", "--locale", help="Locale for Instagram (e.g. en_US, pt_BR)"),
+    timezone: str = typer.Option("0", "--timezone", help="Timezone offset in seconds (e.g. -10800)"),
     delay_min: int = typer.Option(1, "--delay-min", help="Min delay between actions (seconds)"),
     delay_max: int = typer.Option(3, "--delay-max", help="Max delay between actions (seconds)"),
 ):
@@ -78,20 +81,27 @@ def login(
     account = ctx.obj["account"]
     secrets = _get_secrets(ctx)
 
+    # Check for existing session
+    existing_session = secrets.get(account, "private_session") or ""
+    
+    # Prompt for password if not provided AND no session exists
+    effective_password = password
+    if not effective_password and not existing_session:
+        effective_password = typer.prompt("Instagram password", hide_input=True)
+
     # Warn about missing proxy
     effective_proxy = proxy or ctx.obj.get("proxy", "")
     if not effective_proxy and not ctx.obj["json"]:
         console.print("[yellow]Warning:[/yellow] No proxy set. Instagram may flag your IP.")
         console.print("  Use --proxy or set proxy in config.toml for safety.")
 
-    # Check for existing session
-    existing_session = secrets.get(account, "private_session") or ""
-
     config = LoginConfig(
         username=username,
-        password=password,
+        password=effective_password or "",
         totp_seed=totp_seed,
         proxy=effective_proxy,
+        locale=locale,
+        timezone=timezone,
         delay_range=[delay_min, delay_max],
     )
 

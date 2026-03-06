@@ -30,13 +30,14 @@ class LoginResult:
 @dataclass
 class LoginConfig:
     username: str
-    password: str
+    password: str = ""
     totp_seed: str = ""
     proxy: str = ""
     delay_range: list[int] = field(default_factory=lambda: list(DEFAULT_DELAY_RANGE))
     challenge_handler: Optional[Callable[[str], str]] = None
-    locale: str = ""
-    timezone: str = ""
+    locale: str = "en_US"
+    timezone: str = "UTC"
+    device_settings: dict[str, Any] = field(default_factory=dict)
 
 
 def _challenge_code_handler(username: str, choice: str) -> str:
@@ -55,10 +56,20 @@ def _configure_client(client: Any, config: LoginConfig) -> None:
 
     client.delay_range = config.delay_range
 
+    # Set device settings BEFORE login to avoid fingerprint-based blocks
+    if config.device_settings:
+        client.device_settings = config.device_settings
+
     if config.locale:
         client.set_locale(config.locale)
+        client.set_country_code(1 if config.locale.endswith("US") else 0)
+        client.set_country("US" if config.locale.endswith("US") else config.locale[-2:])
+
     if config.timezone:
-        client.set_timezone_offset(int(config.timezone))
+        try:
+            client.set_timezone_offset(int(config.timezone))
+        except ValueError:
+            client.set_timezone_offset(0)
 
     if config.totp_seed:
         client.totp_seed = config.totp_seed
@@ -127,7 +138,11 @@ def login_private(config: LoginConfig, existing_session: str = "") -> LoginResul
         try:
             session_data = json.loads(existing_session)
             cl.set_settings(session_data)
-            cl.login(config.username, config.password)
+            
+            # If session exists, and we don't have a password in config,
+            # we should still be able to try validating it.
+            if config.password:
+                cl.login(config.username, config.password)
 
             if _validate_session(cl):
                 logger.info("Session restored successfully for %s", config.username)
@@ -142,6 +157,9 @@ def login_private(config: LoginConfig, existing_session: str = "") -> LoginResul
             logger.info("Session expired for %s, re-authenticating with preserved UUIDs", config.username)
             old_settings = cl.get_settings()
             uuids = _extract_uuids(old_settings)
+
+            if not config.password:
+                return LoginResult(success=False, username=config.username, error="Session expired and no password provided for re-login")
 
             cl = Client()
             _configure_client(cl, config)
@@ -166,7 +184,7 @@ def login_private(config: LoginConfig, existing_session: str = "") -> LoginResul
             return LoginResult(
                 success=False,
                 username=config.username,
-                error="Challenge required during session restore. Try logging in again.",
+                error="Instagram challenge required. Try again — the challenge handler will prompt you.",
                 challenge_required=True,
             )
         except TwoFactorRequired:
@@ -204,6 +222,9 @@ def login_private(config: LoginConfig, existing_session: str = "") -> LoginResul
             _configure_client(cl, config)
 
     # ── Fresh login ─────────────────────────────────────────────────
+    if not config.password:
+        return LoginResult(success=False, username=config.username, error="Authentication required but no session or password provided.")
+
     try:
         cl.login(config.username, config.password)
     except TwoFactorRequired:
@@ -229,6 +250,16 @@ def login_private(config: LoginConfig, existing_session: str = "") -> LoginResul
             challenge_required=True,
         )
     except Exception as exc:
+        err_msg = str(exc)
+        if "IP address, because it is added to the blacklist" in err_msg:
+            # Detected the misleading instagrapi message
+            return LoginResult(
+                success=False, 
+                username=config.username, 
+                error="Instagram flagged this login as suspicious (False-positive IP blacklist). "
+                      "This usually means the device fingerprint is outdated. "
+                      "Try changing your --locale or using a --proxy."
+            )
         return LoginResult(success=False, username=config.username, error=f"Login failed: {exc}")
 
     # ── Validate ────────────────────────────────────────────────────

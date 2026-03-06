@@ -321,7 +321,9 @@ class PrivateBackend(Backend):
 
     def analytics_profile(self) -> dict:
         try:
-            info = self._cl.account_info()
+            account = self._cl.account_info()
+            # Account object lacks follower/media counts — fetch via user_info
+            info = self._cl.user_info(int(account.pk))
             return {
                 "username": info.username,
                 "full_name": info.full_name,
