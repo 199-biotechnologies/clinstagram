@@ -64,13 +64,15 @@ def _instantiate_backend(ctx: typer.Context, backend_name: str) -> Backend:
         from clinstagram.backends.private import PrivateBackend
 
         session_json = secrets.get(account, "private_session")
+        if not session_json:
+            raise RuntimeError("No private session stored. Run: clinstagram auth login")
         cl = Client()
-        if session_json:
-            cl.set_settings(json.loads(session_json))
+        session_data = json.loads(session_json)
+        cl.set_settings(session_data)
         proxy = ctx.obj.get("proxy")
         if proxy:
             cl.set_proxy(proxy)
-        cl.login_by_sessionid(cl.settings.get("sessionid", ""))
+        cl.delay_range = [1, 3]
         return PrivateBackend(client=cl)
 
     raise ValueError(f"Unknown backend: {backend_name}")

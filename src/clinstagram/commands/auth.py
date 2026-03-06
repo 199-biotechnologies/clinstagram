@@ -63,10 +63,67 @@ def connect_fb(ctx: typer.Context):
 
 
 @auth_app.command("login")
-def login(ctx: typer.Context):
+def login(
+    ctx: typer.Context,
+    username: str = typer.Option(..., "--username", "-u", prompt=True, help="Instagram username"),
+    password: str = typer.Option(..., "--password", "-p", prompt=True, hide_input=True, help="Instagram password"),
+    totp_seed: str = typer.Option("", "--totp-seed", help="TOTP seed for 2FA (base32)"),
+    proxy: str = typer.Option("", "--proxy", help="Proxy URL (recommended for private API)"),
+    delay_min: int = typer.Option(1, "--delay-min", help="Min delay between actions (seconds)"),
+    delay_max: int = typer.Option(3, "--delay-max", help="Max delay between actions (seconds)"),
+):
     """Login via Private API (instagrapi). Username/password/2FA."""
-    typer.echo("Private API login flow — coming in Phase 2.")
-    raise typer.Exit(code=1)
+    from clinstagram.auth.private_login import LoginConfig, login_private
+
+    account = ctx.obj["account"]
+    secrets = _get_secrets(ctx)
+
+    # Warn about missing proxy
+    effective_proxy = proxy or ctx.obj.get("proxy", "")
+    if not effective_proxy and not ctx.obj["json"]:
+        console.print("[yellow]Warning:[/yellow] No proxy set. Instagram may flag your IP.")
+        console.print("  Use --proxy or set proxy in config.toml for safety.")
+
+    # Check for existing session
+    existing_session = secrets.get(account, "private_session") or ""
+
+    config = LoginConfig(
+        username=username,
+        password=password,
+        totp_seed=totp_seed,
+        proxy=effective_proxy,
+        delay_range=[delay_min, delay_max],
+    )
+
+    result = login_private(config, existing_session=existing_session)
+
+    if result.success:
+        # Store session in keychain
+        secrets.set(account, "private_session", result.session_json)
+
+        if ctx.obj["json"]:
+            typer.echo(json.dumps({
+                "status": "success",
+                "username": result.username,
+                "backend": "private",
+                "relogin": result.relogin,
+            }))
+        else:
+            label = "Re-authenticated" if result.relogin else "Logged in"
+            console.print(f"[green]{label}[/green] as [bold]{result.username}[/bold] (private API)")
+    else:
+        error_data = {
+            "status": "error",
+            "error": result.error,
+            "challenge_required": result.challenge_required,
+        }
+        if ctx.obj["json"]:
+            typer.echo(json.dumps(error_data), err=True)
+        else:
+            console.print(f"[red]Login failed:[/red] {result.error}")
+            if result.challenge_required:
+                console.print("[yellow]Tip:[/yellow] Run login again — Instagram will send a verification code.")
+        raise typer.Exit(code=2)
 
 
 @auth_app.command("probe")
