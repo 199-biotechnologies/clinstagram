@@ -21,7 +21,7 @@ def list_comments(
 @comments_app.command("reply")
 def reply(
     ctx: typer.Context,
-    comment_id: str = typer.Argument(..., help="Comment ID to reply to"),
+    comment_id: str = typer.Argument(..., help="Comment ID (media_id:comment_id from 'comments list')"),
     text: str = typer.Argument(..., help="Reply text"),
 ):
     """Reply to a comment. Requires --enable-growth-actions."""
@@ -44,7 +44,7 @@ def add(
 @comments_app.command("delete")
 def delete(
     ctx: typer.Context,
-    comment_id: str = typer.Argument(..., help="Comment ID to delete"),
+    comment_id: str = typer.Argument(..., help="Comment ID (media_id:comment_id from 'comments list')"),
 ):
     """Delete a comment."""
     dispatch(ctx, Feature.COMMENTS_DELETE, lambda b: b.comments_delete(comment_id))

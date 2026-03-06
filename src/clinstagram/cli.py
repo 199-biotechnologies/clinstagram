@@ -38,7 +38,7 @@ def main(
     proxy: Optional[str] = typer.Option(None, "--proxy", help="Proxy URL for private API"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would happen"),
     enable_growth: bool = typer.Option(
-        False, "--enable-growth-actions", help="Unlock follow/unfollow"
+        False, "--enable-growth-actions", help="Unlock follow/unfollow, like/unlike, and commenting"
     ),
     version: bool = typer.Option(
         False, "--version", callback=_version_callback, is_eager=True

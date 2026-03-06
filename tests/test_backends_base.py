@@ -219,19 +219,21 @@ class TestPrivateBackendCommentsList:
 
 
 class TestPrivateBackendCommentsReply:
-    def test_comments_reply_calls_comment_reply(self):
+    def test_comments_reply_uses_media_comment_with_replied_to(self):
         mock_client = MagicMock()
         comment = MagicMock()
         comment.pk = 456
         comment.text = "reply text"
         comment.user = None
         comment.created_at_utc = None
-        mock_client.comment_reply.return_value = comment
-        
+        mock_client.media_comment.return_value = comment
+
         backend = PrivateBackend(client=mock_client)
         result = backend.comments_reply("media999:123", "reply text")
-        
-        mock_client.comment_reply.assert_called_once_with("media999", 123, "reply text")
+
+        mock_client.media_comment.assert_called_once_with(
+            "media999", "reply text", replied_to_comment_id=123
+        )
         assert result["text"] == "reply text"
 
 

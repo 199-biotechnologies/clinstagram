@@ -320,13 +320,13 @@ class GraphBackend(Backend):
         return self._get(media_id, params)
 
     def analytics_hashtag(self, tag: str) -> dict:
-        # Search for the hashtag ID first, then fetch insights
-        search = self._get("ig_hashtag_search", {"q": tag})
+        me = self._me_id()
+        # ig_hashtag_search requires user_id on the search request itself
+        search = self._get("ig_hashtag_search", {"q": tag, "user_id": me})
         results = search.get("data", [])
         if not results:
             return {"tag": tag, "error": "Hashtag not found"}
         hashtag_id = results[0]["id"]
-        me = self._me_id()
         params = {"fields": "id,name,media_count", "user_id": me}
         return self._get(hashtag_id, params)
 
@@ -415,12 +415,17 @@ class GraphBackend(Backend):
     # Hashtag browsing
     # ------------------------------------------------------------------
 
-    def hashtag_top(self, tag: str, limit: int = 20) -> list[dict]:
-        search = self._get("ig_hashtag_search", {"q": tag})
+    def _hashtag_id(self, tag: str) -> str | None:
+        """Look up a hashtag ID (requires user_id per Meta docs)."""
+        me = self._me_id()
+        search = self._get("ig_hashtag_search", {"q": tag, "user_id": me})
         results = search.get("data", [])
-        if not results:
+        return results[0]["id"] if results else None
+
+    def hashtag_top(self, tag: str, limit: int = 20) -> list[dict]:
+        hashtag_id = self._hashtag_id(tag)
+        if not hashtag_id:
             return []
-        hashtag_id = results[0]["id"]
         me = self._me_id()
         params = {
             "fields": "id,caption,media_type,media_url,timestamp,like_count,comments_count",
@@ -431,11 +436,9 @@ class GraphBackend(Backend):
         return data.get("data", [])
 
     def hashtag_recent(self, tag: str, limit: int = 20) -> list[dict]:
-        search = self._get("ig_hashtag_search", {"q": tag})
-        results = search.get("data", [])
-        if not results:
+        hashtag_id = self._hashtag_id(tag)
+        if not hashtag_id:
             return []
-        hashtag_id = results[0]["id"]
         me = self._me_id()
         params = {
             "fields": "id,caption,media_type,media_url,timestamp,like_count,comments_count",

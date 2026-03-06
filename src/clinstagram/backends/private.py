@@ -296,13 +296,13 @@ class PrivateBackend(Backend):
 
     def comments_reply(self, comment_id: str, text: str) -> dict:
         try:
-            # instagrapi expects media_id and comment_id for threaded replies
+            # Composite ID format: media_id:comment_id (from comments_list)
             parts = comment_id.split(":", 1)
             if len(parts) == 2:
                 media_id, cid = parts
-                result = self._cl.comment_reply(media_id, int(cid), text)
+                result = self._cl.media_comment(media_id, text, replied_to_comment_id=int(cid))
             else:
-                # Fallback to top-level comment if only media_id is provided
+                # Fallback: treat as media_id for top-level comment
                 result = self._cl.media_comment(comment_id, text)
             return _comment_to_dict(result)
         except Exception as exc:
