@@ -1,0 +1,37 @@
+from __future__ import annotations
+
+import typer
+
+from clinstagram.backends.capabilities import Feature
+from clinstagram.commands._dispatch import dispatch, make_subgroup
+
+comments_app = make_subgroup("Manage comments")
+
+
+@comments_app.command("list")
+def list_comments(
+    ctx: typer.Context,
+    media_id: str = typer.Argument(..., help="Media ID"),
+    limit: int = typer.Option(50, "--limit", "-n", help="Max comments to return"),
+):
+    """List comments on a post."""
+    dispatch(ctx, Feature.COMMENTS_LIST, lambda b: b.comments_list(media_id, limit))
+
+
+@comments_app.command("reply")
+def reply(
+    ctx: typer.Context,
+    comment_id: str = typer.Argument(..., help="Comment ID to reply to"),
+    text: str = typer.Argument(..., help="Reply text"),
+):
+    """Reply to a comment."""
+    dispatch(ctx, Feature.COMMENTS_REPLY, lambda b: b.comments_reply(comment_id, text))
+
+
+@comments_app.command("delete")
+def delete(
+    ctx: typer.Context,
+    comment_id: str = typer.Argument(..., help="Comment ID to delete"),
+):
+    """Delete a comment."""
+    dispatch(ctx, Feature.COMMENTS_DELETE, lambda b: b.comments_delete(comment_id))

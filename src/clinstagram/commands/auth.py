@@ -7,9 +7,10 @@ from rich.console import Console
 from rich.table import Table
 
 from clinstagram.auth.keychain import SecretsStore
+from clinstagram.commands._dispatch import make_subgroup
 
 console = Console()
-auth_app = typer.Typer(help="Manage authentication (Graph & Private)")
+auth_app = make_subgroup("Manage authentication (Graph & Private)")
 
 
 def _get_secrets(ctx: typer.Context) -> SecretsStore:

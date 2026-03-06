@@ -4,9 +4,10 @@ import json
 
 import typer
 
+from clinstagram.commands._dispatch import make_subgroup
 from clinstagram.config import ComplianceMode, save_config
 
-config_app = typer.Typer(help="Manage configuration")
+config_app = make_subgroup("Manage configuration")
 
 
 @config_app.command("show")

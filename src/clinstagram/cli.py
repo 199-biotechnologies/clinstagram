@@ -14,7 +14,6 @@ app = typer.Typer(
     name="clinstagram",
     help="Hybrid Instagram CLI for OpenClaw — Graph API + Private API",
     no_args_is_help=True,
-    context_settings={"allow_interspersed_args": True},
 )
 
 
@@ -37,8 +36,6 @@ def main(
     backend: BackendType = typer.Option(BackendType.AUTO, "--backend", help="Force backend"),
     proxy: Optional[str] = typer.Option(None, "--proxy", help="Proxy URL for private API"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would happen"),
-    verbose: bool = typer.Option(False, "--verbose", help="Debug logging"),
-    no_color: bool = typer.Option(False, "--no-color", help="Disable color output"),
     enable_growth: bool = typer.Option(
         False, "--enable-growth-actions", help="Unlock follow/unfollow"
     ),
@@ -55,45 +52,33 @@ def main(
     ctx.obj["backend"] = backend
     ctx.obj["proxy"] = proxy
     ctx.obj["dry_run"] = dry_run
-    ctx.obj["verbose"] = verbose
-    ctx.obj["no_color"] = no_color
     ctx.obj["enable_growth"] = enable_growth
     ctx.obj["config_dir"] = config_dir
     ctx.obj["config"] = load_config(config_dir)
-    # Use memory-backed secrets when config dir is overridden (tests/CI)
-    if config_dir is not None:
+    # Use memory-backed secrets only in explicit test mode
+    if os.environ.get("CLINSTAGRAM_TEST_MODE") == "1":
         from clinstagram.auth.keychain import SecretsStore
 
         ctx.obj["secrets"] = SecretsStore(backend="memory")
 
 
 # Register command groups
+from clinstagram.commands.analytics import analytics_app  # noqa: E402
 from clinstagram.commands.auth import auth_app  # noqa: E402
+from clinstagram.commands.comments import comments_app  # noqa: E402
 from clinstagram.commands.config_cmd import config_app  # noqa: E402
+from clinstagram.commands.dm import dm_app  # noqa: E402
+from clinstagram.commands.followers import followers_app  # noqa: E402
+from clinstagram.commands.post import post_app  # noqa: E402
+from clinstagram.commands.story import story_app  # noqa: E402
+from clinstagram.commands.user import user_app  # noqa: E402
 
 app.add_typer(auth_app, name="auth")
 app.add_typer(config_app, name="config")
-
-
-# Placeholder groups for future phases
-def _make_placeholder(group_help: str) -> typer.Typer:
-    sub = typer.Typer(help=group_help)
-
-    @sub.command("help")
-    def _placeholder(ctx: typer.Context):
-        """Coming in a future phase."""
-        typer.echo("Commands for this group are not yet implemented.")
-
-    return sub
-
-
-for _name, _help in [
-    ("post", "Post photos, videos, reels"),
-    ("dm", "Manage direct messages"),
-    ("story", "Manage stories"),
-    ("comments", "Manage comments"),
-    ("analytics", "View analytics"),
-    ("followers", "Manage followers"),
-    ("user", "User lookup"),
-]:
-    app.add_typer(_make_placeholder(_help), name=_name)
+app.add_typer(post_app, name="post")
+app.add_typer(dm_app, name="dm")
+app.add_typer(story_app, name="story")
+app.add_typer(comments_app, name="comments")
+app.add_typer(analytics_app, name="analytics")
+app.add_typer(followers_app, name="followers")
+app.add_typer(user_app, name="user")

@@ -18,17 +18,20 @@ def test_version():
 
 def test_auth_status_json(tmp_path, monkeypatch):
     monkeypatch.setenv("CLINSTAGRAM_CONFIG_DIR", str(tmp_path))
-    result = runner.invoke(app, ["auth", "status", "--json"])
+    monkeypatch.setenv("CLINSTAGRAM_TEST_MODE", "1")
+    result = runner.invoke(app, ["--json", "auth", "status"])
     assert result.exit_code == 0
 
 
 def test_config_show_json(tmp_path, monkeypatch):
     monkeypatch.setenv("CLINSTAGRAM_CONFIG_DIR", str(tmp_path))
-    result = runner.invoke(app, ["config", "show", "--json"])
+    monkeypatch.setenv("CLINSTAGRAM_TEST_MODE", "1")
+    result = runner.invoke(app, ["--json", "config", "show"])
     assert result.exit_code == 0
 
 
 def test_config_mode_set(tmp_path, monkeypatch):
     monkeypatch.setenv("CLINSTAGRAM_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("CLINSTAGRAM_TEST_MODE", "1")
     result = runner.invoke(app, ["config", "mode", "official-only"])
     assert result.exit_code == 0

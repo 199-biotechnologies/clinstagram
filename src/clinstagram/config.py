@@ -83,8 +83,18 @@ def load_config(config_dir: Optional[Path] = None) -> GlobalConfig:
     return GlobalConfig(**data)
 
 
+def _strip_none(obj: object) -> object:
+    """Recursively remove None values — TOML cannot serialize them."""
+    if isinstance(obj, dict):
+        return {k: _strip_none(v) for k, v in obj.items() if v is not None}
+    if isinstance(obj, list):
+        return [_strip_none(i) for i in obj]
+    return obj
+
+
 def save_config(config: GlobalConfig, config_dir: Optional[Path] = None) -> None:
     d = ensure_dirs(config_dir)
     config_path = d / "config.toml"
+    data = _strip_none(config.model_dump(mode="json"))
     with open(config_path, "wb") as f:
-        tomli_w.dump(config.model_dump(mode="json"), f)
+        tomli_w.dump(data, f)

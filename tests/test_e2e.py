@@ -10,9 +10,10 @@ runner = CliRunner()
 def test_full_workflow(tmp_path, monkeypatch):
     """Simulate: set config -> check status -> set mode -> verify."""
     monkeypatch.setenv("CLINSTAGRAM_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("CLINSTAGRAM_TEST_MODE", "1")
 
     # Check initial config
-    result = runner.invoke(app, ["config", "show", "--json"])
+    result = runner.invoke(app, ["--json", "config", "show"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
     assert data["compliance_mode"] == "hybrid-safe"
@@ -22,13 +23,13 @@ def test_full_workflow(tmp_path, monkeypatch):
     assert result.exit_code == 0
 
     # Verify persisted
-    result = runner.invoke(app, ["config", "show", "--json"])
+    result = runner.invoke(app, ["--json", "config", "show"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
     assert data["compliance_mode"] == "official-only"
 
     # Auth status (no backends configured)
-    result = runner.invoke(app, ["auth", "status", "--json"])
+    result = runner.invoke(app, ["--json", "auth", "status"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
     assert data["backends"]["graph_ig"] is False
