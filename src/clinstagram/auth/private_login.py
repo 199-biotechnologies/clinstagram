@@ -16,6 +16,18 @@ logger = logging.getLogger(__name__)
 # Default action delays (seconds) — reduces detection risk
 DEFAULT_DELAY_RANGE = [1, 3]
 
+# Modern device fingerprint — replaces instagrapi's flagged OnePlus 6T / Android 8
+DEFAULT_DEVICE_SETTINGS = {
+    "android_version": 33,
+    "android_release": "13.0.0",
+    "dpi": "420dpi",
+    "resolution": "1080x2400",
+    "manufacturer": "Google",
+    "device": "panther",
+    "model": "Pixel 7",
+    "cpu": "arm64-v8a",
+}
+
 # Locale → (country_code, country) for common Instagram locales
 _LOCALE_MAP = {
     "en_US": (1, "US"),
@@ -69,6 +81,7 @@ class LoginResult:
     username: str = ""
     session_json: str = ""
     error: str = ""
+    remediation: str = ""
     challenge_required: bool = False
     relogin: bool = False
 
@@ -96,15 +109,15 @@ def _challenge_code_handler(username: str, choice: str) -> str:
 
 
 def _configure_client(client: Any, config: LoginConfig) -> None:
-    """Apply proxy, delays, locale, and TOTP to an instagrapi Client."""
+    """Apply proxy, delays, device, locale, and TOTP to an instagrapi Client."""
     if config.proxy:
         client.set_proxy(config.proxy)
 
     client.delay_range = config.delay_range
 
-    # Set device settings BEFORE login to avoid fingerprint-based blocks
-    if config.device_settings:
-        client.device_settings = config.device_settings
+    # Set device BEFORE login — uses set_device() so user agent is rebuilt
+    device = {**DEFAULT_DEVICE_SETTINGS, **(config.device_settings or {})}
+    client.set_device(device)
 
     # Resolve locale — auto-detect if not provided
     locale = config.locale or _detect_system_locale()
@@ -122,6 +135,9 @@ def _configure_client(client: Any, config: LoginConfig) -> None:
     else:
         import time
         client.set_timezone_offset(-time.timezone)
+
+    # Rebuild user agent with new device/locale settings
+    client.set_user_agent()
 
     if config.totp_seed:
         client.totp_seed = config.totp_seed
@@ -177,8 +193,11 @@ def login_private(config: LoginConfig, existing_session: str = "") -> LoginResul
     """
     from instagrapi import Client
     from instagrapi.exceptions import (
+        BadPassword,
         ChallengeRequired,
         LoginRequired,
+        PleaseWaitFewMinutes,
+        SentryBlock,
         TwoFactorRequired,
     )
 
@@ -301,17 +320,33 @@ def login_private(config: LoginConfig, existing_session: str = "") -> LoginResul
             error="Instagram challenge required. Try again — the challenge handler will prompt you.",
             challenge_required=True,
         )
+    except BadPassword:
+        email_hint = (
+            " If you normally sign in with an email address, retry with that exact email."
+            if "@" not in config.username else ""
+        )
+        return LoginResult(
+            success=False,
+            username=config.username,
+            error="Instagram rejected the login. This can mean the password is wrong, "
+                  "the login identifier is wrong, or Instagram flagged this login fingerprint.",
+            remediation="Verify the exact login identifier (username or email) and password." + email_hint,
+        )
+    except SentryBlock:
+        return LoginResult(
+            success=False,
+            username=config.username,
+            error="Instagram blocked this login as suspicious.",
+            remediation="Wait a few minutes, then retry with a matching --locale or --proxy.",
+        )
+    except PleaseWaitFewMinutes:
+        return LoginResult(
+            success=False,
+            username=config.username,
+            error="Instagram asked you to wait before retrying.",
+            remediation="Wait a few minutes before retrying. Do not spam login attempts.",
+        )
     except Exception as exc:
-        err_msg = str(exc)
-        if "IP address, because it is added to the blacklist" in err_msg:
-            # Detected the misleading instagrapi message
-            return LoginResult(
-                success=False, 
-                username=config.username, 
-                error="Instagram flagged this login as suspicious (False-positive IP blacklist). "
-                      "This usually means the device fingerprint is outdated. "
-                      "Try changing your --locale or using a --proxy."
-            )
         return LoginResult(success=False, username=config.username, error=f"Login failed: {exc}")
 
     # ── Validate ────────────────────────────────────────────────────

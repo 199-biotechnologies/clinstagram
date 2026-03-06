@@ -247,8 +247,103 @@ class TestLoginResult:
         assert r.username == ""
         assert r.session_json == ""
         assert r.error == ""
+        assert r.remediation == ""
         assert r.challenge_required is False
         assert r.relogin is False
+
+
+class TestBadPasswordHandling:
+    """Verify BadPassword is caught explicitly (not string-matched)."""
+
+    @patch("instagrapi.Client")
+    def test_bad_password_no_email_hint(self, MockClient):
+        from instagrapi.exceptions import BadPassword
+
+        cl = MagicMock()
+        cl.login.side_effect = BadPassword()
+        MockClient.return_value = cl
+
+        config = LoginConfig(username="testuser", password="wrong")
+        result = login_private(config)
+
+        assert result.success is False
+        assert "rejected the login" in result.error
+        assert "email" in result.remediation  # hint to try email
+        assert "IP" not in result.error  # no misleading IP message
+
+    @patch("instagrapi.Client")
+    def test_bad_password_with_email_no_extra_hint(self, MockClient):
+        from instagrapi.exceptions import BadPassword
+
+        cl = MagicMock()
+        cl.login.side_effect = BadPassword()
+        MockClient.return_value = cl
+
+        config = LoginConfig(username="user@example.com", password="wrong")
+        result = login_private(config)
+
+        assert result.success is False
+        # Should NOT suggest trying email when already using email
+        assert "retry with that exact email" not in result.remediation
+
+    @patch("instagrapi.Client")
+    def test_sentry_block(self, MockClient):
+        from instagrapi.exceptions import SentryBlock
+
+        cl = MagicMock()
+        cl.login.side_effect = SentryBlock()
+        MockClient.return_value = cl
+
+        config = LoginConfig(username="testuser", password="pass")
+        result = login_private(config)
+
+        assert result.success is False
+        assert "suspicious" in result.error
+        assert result.remediation != ""
+
+    @patch("instagrapi.Client")
+    def test_please_wait(self, MockClient):
+        from instagrapi.exceptions import PleaseWaitFewMinutes
+
+        cl = MagicMock()
+        cl.login.side_effect = PleaseWaitFewMinutes()
+        MockClient.return_value = cl
+
+        config = LoginConfig(username="testuser", password="pass")
+        result = login_private(config)
+
+        assert result.success is False
+        assert "wait" in result.error.lower()
+
+
+class TestDeviceFingerprint:
+    """Verify modern device settings are applied via set_device()."""
+
+    def test_configure_uses_set_device(self):
+        from clinstagram.auth.private_login import DEFAULT_DEVICE_SETTINGS
+
+        client = MagicMock()
+        config = LoginConfig(username="u", password="p")
+        _configure_client(client, config)
+        client.set_device.assert_called_once()
+        device_arg = client.set_device.call_args[0][0]
+        assert device_arg["manufacturer"] == "Google"
+        assert device_arg["model"] == "Pixel 7"
+        assert device_arg["android_version"] == 33
+
+    def test_configure_rebuilds_user_agent(self):
+        client = MagicMock()
+        config = LoginConfig(username="u", password="p")
+        _configure_client(client, config)
+        client.set_user_agent.assert_called_once()
+
+    def test_custom_device_overrides_defaults(self):
+        client = MagicMock()
+        config = LoginConfig(username="u", password="p", device_settings={"model": "Galaxy S24"})
+        _configure_client(client, config)
+        device_arg = client.set_device.call_args[0][0]
+        assert device_arg["model"] == "Galaxy S24"
+        assert device_arg["manufacturer"] == "Google"  # default preserved
 
 
 class TestLoginCommand:

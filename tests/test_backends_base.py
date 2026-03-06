@@ -112,6 +112,34 @@ class TestPrivateBackendImplementsInterface:
         assert backend.name == "private"
 
 
+class TestPrivateBackendAnalyticsProfile:
+    """Regression: analytics_profile must use user_info() for counts, not account_info()."""
+
+    def test_analytics_profile_uses_user_info_for_counts(self):
+        mock_client = MagicMock()
+        account = MagicMock()
+        account.pk = 12345
+        mock_client.account_info.return_value = account
+
+        user = MagicMock()
+        user.username = "testuser"
+        user.full_name = "Test User"
+        user.follower_count = 1000
+        user.following_count = 500
+        user.media_count = 50
+        user.biography = "Bio"
+        mock_client.user_info.return_value = user
+
+        backend = PrivateBackend(client=mock_client)
+        result = backend.analytics_profile()
+
+        mock_client.account_info.assert_called_once()
+        mock_client.user_info.assert_called_once_with(12345)
+        assert result["followers_count"] == 1000
+        assert result["following_count"] == 500
+        assert result["media_count"] == 50
+
+
 class TestBackendCannotBeInstantiated:
     def test_abstract_class_raises(self):
         with pytest.raises(TypeError):

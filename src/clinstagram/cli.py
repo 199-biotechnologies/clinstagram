@@ -13,6 +13,7 @@ from clinstagram.config import BackendType, load_config
 app = typer.Typer(
     name="clinstagram",
     help="Hybrid Instagram CLI for OpenClaw — Graph API + Private API",
+    epilog="Global options (--json, --proxy, --account) must appear before the subcommand. Example: clinstagram --json auth status",
     no_args_is_help=True,
 )
 
@@ -31,7 +32,7 @@ def _resolve_config_dir() -> Optional[Path]:
 @app.callback()
 def main(
     ctx: typer.Context,
-    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON (place before subcommand)"),
     account: str = typer.Option("default", "--account", help="Account name"),
     backend: BackendType = typer.Option(BackendType.AUTO, "--backend", help="Force backend"),
     proxy: Optional[str] = typer.Option(None, "--proxy", help="Proxy URL for private API"),
@@ -50,11 +51,12 @@ def main(
     ctx.obj["json"] = json_output
     ctx.obj["account"] = account
     ctx.obj["backend"] = backend
-    ctx.obj["proxy"] = proxy
+    config = load_config(config_dir)
+    ctx.obj["proxy"] = proxy or config.proxy
     ctx.obj["dry_run"] = dry_run
     ctx.obj["enable_growth"] = enable_growth
     ctx.obj["config_dir"] = config_dir
-    ctx.obj["config"] = load_config(config_dir)
+    ctx.obj["config"] = config
     # Use memory-backed secrets only in explicit test mode
     if os.environ.get("CLINSTAGRAM_TEST_MODE") == "1":
         from clinstagram.auth.keychain import SecretsStore

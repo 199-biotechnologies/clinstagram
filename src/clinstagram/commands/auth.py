@@ -127,10 +127,14 @@ def login(
             "error": result.error,
             "challenge_required": result.challenge_required,
         }
+        if result.remediation:
+            error_data["remediation"] = result.remediation
         if ctx.obj["json"]:
             typer.echo(json.dumps(error_data), err=True)
         else:
             console.print(f"[red]Login failed:[/red] {result.error}")
+            if result.remediation:
+                console.print(f"[yellow]Fix:[/yellow] {result.remediation}")
             if result.challenge_required:
                 console.print("[yellow]Tip:[/yellow] Run login again — Instagram will send a verification code.")
         raise typer.Exit(code=2)
