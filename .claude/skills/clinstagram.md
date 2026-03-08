@@ -1,21 +1,11 @@
 ---
 name: clinstagram
-description: >
-  Full Instagram CLI — posting, DMs, stories, analytics, followers, hashtags, likes, comments.
-  Supports Meta Graph API (official, safe) and private API (full features).
-  Three compliance modes: official-only, hybrid-safe, private-enabled.
-metadata: {"openclaw": {"requires": {"bins": ["clinstagram"], "env": ["CLINSTAGRAM_CONFIG_DIR"]}, "primaryEnv": "CLINSTAGRAM_SECRETS_FILE", "emoji": "📸", "homepage": "https://github.com/199-biotechnologies/clinstagram", "install": [{"pip": "clinstagram"}]}}
+description: Use when user asks to post on Instagram, check DMs, view stories, manage followers, get analytics, search users/hashtags, comment on posts, or any Instagram automation task. Also triggers on "clinstagram", "instagram cli", "ig post", "ig dm", "ig story".
 ---
 
-# clinstagram
+# clinstagram — Hybrid Instagram CLI
 
-Hybrid Instagram CLI for AI agents. Routes between Meta Graph API and instagrapi private API based on compliance policy.
-
-## Install
-
-```bash
-pip install clinstagram
-```
+Routes between Meta Graph API and instagrapi private API based on compliance policy. Installed via `pip install clinstagram`.
 
 ## Critical: Global Flags Before Subcommand
 
@@ -26,28 +16,11 @@ clinstagram dm inbox --json                    # WRONG — Typer limitation
 
 Global flags: `--json`, `--account NAME`, `--backend auto|graph_ig|graph_fb|private`, `--proxy URL`, `--dry-run`, `--enable-growth-actions`
 
-## Quick Start
-
-```bash
-# Check status
-clinstagram --json auth status
-
-# Set compliance mode
-clinstagram config mode official-only    # Graph API only, zero risk
-clinstagram config mode hybrid-safe      # Graph primary, private read-only (default)
-clinstagram config mode private-enabled  # Full access, user accepts risk
-
-# Connect backends
-clinstagram auth connect-ig   # Instagram Login (posting, comments, analytics)
-clinstagram auth connect-fb   # Facebook Login (adds DMs, stories, webhooks)
-clinstagram auth login         # Private API (username/password/2FA via instagrapi)
-```
-
 ## Commands
 
 | Group | Commands | Notes |
 |-------|----------|-------|
-| `auth` | `status`, `login`, `connect-ig`, `connect-fb`, `probe`, `logout` | Start with `auth status --json` |
+| `auth` | `status`, `login`, `connect-ig`, `connect-fb`, `probe`, `logout` | Always start with `auth status --json` |
 | `post` | `photo`, `video`, `reel`, `carousel` | Accepts local paths or URLs |
 | `dm` | `inbox`, `thread ID`, `send @user "text"`, `send-media`, `search` | Cold DMs = private API only |
 | `story` | `list [@user]`, `post-photo`, `post-video`, `viewers ID` | |
@@ -59,7 +32,7 @@ clinstagram auth login         # Private API (username/password/2FA via instagra
 | `like` | `post MEDIA_ID`, `undo MEDIA_ID` | Needs `--enable-growth-actions` |
 | `config` | `show`, `mode MODE`, `set KEY VAL` | Modes: `official-only`, `hybrid-safe`, `private-enabled` |
 
-## JSON Output
+## JSON Output Schema
 
 Success:
 ```json
@@ -94,7 +67,7 @@ clinstagram --json auth status
 clinstagram --json auth probe
 
 # 3. Preview before acting
-clinstagram --dry-run --json post photo img.jpg --caption "test"
+clinstagram --dry-run --json dm inbox
 
 # 4. Execute
 clinstagram --json dm inbox --unread --limit 20
@@ -104,9 +77,9 @@ clinstagram --json dm inbox --unread --limit 20
 
 ## Growth Actions (Disabled by Default)
 
-Follow, unfollow, like, unlike, comment add/reply require `--enable-growth-actions`. This is a safety gate — confirm with user before enabling.
+Follow, unfollow, like, unlike, comment add/reply all require `--enable-growth-actions` flag. This is a safety gate — always confirm with user before enabling.
 
-## Backend Capability Matrix
+## Backend Routing
 
 | Feature | graph_ig | graph_fb | private |
 |---------|:--------:|:--------:|:-------:|
@@ -120,28 +93,6 @@ Follow, unfollow, like, unlike, comment add/reply require `--enable-growth-actio
 | Hashtag | Y | Y | Y |
 
 Preference order: `graph_ig` > `graph_fb` > `private`. Override with `--backend`.
-
-## Examples
-
-```bash
-# Check DMs
-clinstagram --json dm inbox --unread
-
-# Reply to a message
-clinstagram --json dm send @alice "Thanks!"
-
-# Post a photo
-clinstagram --json post photo /path/to/img.jpg --caption "Hello world"
-
-# Get analytics
-clinstagram --json analytics post latest
-
-# Search users
-clinstagram --json user search "coffee shops"
-
-# Browse hashtag
-clinstagram --json hashtag top photography --limit 10
-```
 
 ## Config
 
