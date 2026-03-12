@@ -61,9 +61,96 @@ class TestDispatchDryRun:
         )
         assert result.exit_code == 0
         data = json.loads(result.output)
-        assert data["dry_run"] is True
-        assert data["feature"] == "post_photo"
-        assert data["backend"] == "graph_ig"
+        assert data["data"]["dry_run"] is True
+        assert data["data"]["feature"] == "post_photo"
+        assert data["data"]["backend"] == "graph_ig"
+        assert data["backend_used"] == "graph_ig"
+
+    def test_local_media_prefers_private_in_private_enabled_mode(self, monkeypatch, tmp_path):
+        secrets = _setup_all_backends()
+        monkeypatch.setattr("clinstagram.commands._dispatch._get_secrets", lambda ctx: secrets)
+        runner.invoke(
+            app, ["config", "mode", "private-enabled"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        result = runner.invoke(
+            app, ["--dry-run", "--json", "post", "photo", "img.jpg"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["data"]["backend"] == "private"
+        assert data["backend_used"] == "private"
+
+    def test_dry_run_honours_forced_backend(self, monkeypatch, tmp_path):
+        secrets = _setup_all_backends()
+        monkeypatch.setattr("clinstagram.commands._dispatch._get_secrets", lambda ctx: secrets)
+        result = runner.invoke(
+            app, ["--dry-run", "--json", "--backend", "graph_ig", "post", "photo", "https://example.com/img.jpg"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["data"]["backend"] == "graph_ig"
+        assert data["backend_used"] == "graph_ig"
+
+    def test_dm_send_username_routes_private(self, monkeypatch, tmp_path):
+        secrets = _setup_all_backends()
+        monkeypatch.setattr("clinstagram.commands._dispatch._get_secrets", lambda ctx: secrets)
+        runner.invoke(
+            app, ["config", "mode", "private-enabled"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        result = runner.invoke(
+            app, ["--dry-run", "--json", "dm", "send", "@alice", "hi"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["data"]["backend"] == "private"
+
+    def test_dm_send_numeric_routes_reply_backend(self, monkeypatch, tmp_path):
+        secrets = _setup_all_backends()
+        monkeypatch.setattr("clinstagram.commands._dispatch._get_secrets", lambda ctx: secrets)
+        result = runner.invoke(
+            app, ["--dry-run", "--json", "dm", "send", "123456789", "hi"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["data"]["backend"] == "graph_fb"
+
+    def test_comments_reply_composite_ref_routes_private(self, monkeypatch, tmp_path):
+        secrets = _setup_all_backends()
+        monkeypatch.setattr("clinstagram.commands._dispatch._get_secrets", lambda ctx: secrets)
+        runner.invoke(
+            app, ["config", "mode", "private-enabled"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        result = runner.invoke(
+            app,
+            ["--dry-run", "--json", "--enable-growth-actions", "comments", "reply", "media123:456", "hello"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["data"]["backend"] == "private"
+
+    def test_story_link_prefers_private(self, monkeypatch, tmp_path):
+        secrets = _setup_all_backends()
+        monkeypatch.setattr("clinstagram.commands._dispatch._get_secrets", lambda ctx: secrets)
+        runner.invoke(
+            app, ["config", "mode", "private-enabled"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        result = runner.invoke(
+            app,
+            ["--dry-run", "--json", "story", "post-photo", "https://example.com/photo.jpg", "--link", "https://example.com"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["data"]["backend"] == "private"
 
 
 class TestDispatchPolicyBlocked:
@@ -80,6 +167,21 @@ class TestDispatchPolicyBlocked:
             env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
         )
         assert result.exit_code in (6, 7)
+
+    def test_forced_private_backend_is_still_blocked(self, monkeypatch, tmp_path):
+        secrets = _setup_all_backends()
+        monkeypatch.setattr("clinstagram.commands._dispatch._get_secrets", lambda ctx: secrets)
+        runner.invoke(
+            app, ["config", "mode", "official-only"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        result = runner.invoke(
+            app, ["--json", "--backend", "private", "dm", "inbox"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 6
+        data = json.loads(result.output)
+        assert "blocked by compliance mode" in data["error"]
 
 
 # ── Growth actions gate ──────────────────────────────────────────────

@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import json
-
 import typer
 
-from clinstagram.commands._dispatch import make_subgroup
+from clinstagram.commands._dispatch import make_subgroup, output_error, output_success
 from clinstagram.config import ComplianceMode, save_config
+from clinstagram.models import CLIError, ExitCode
 
 config_app = make_subgroup("Manage configuration")
 
@@ -15,11 +14,11 @@ def show(ctx: typer.Context):
     """Print current configuration."""
     config = ctx.obj["config"]
     data = config.model_dump(mode="json")
-    if ctx.obj["json"]:
-        typer.echo(json.dumps(data, indent=2))
-    else:
+    if not ctx.obj["json"]:
         for key, val in data.items():
             typer.echo(f"  {key}: {val}")
+        return
+    output_success(ctx, data)
 
 
 @config_app.command("mode")
@@ -28,7 +27,10 @@ def set_mode(ctx: typer.Context, mode: ComplianceMode = typer.Argument(...)):
     config = ctx.obj["config"]
     config.compliance_mode = mode
     save_config(config, ctx.obj.get("config_dir"))
-    typer.echo(f"Compliance mode set to: {mode.value}")
+    if not ctx.obj["json"]:
+        typer.echo(f"Compliance mode set to: {mode.value}")
+        return
+    output_success(ctx, {"compliance_mode": mode.value})
 
 
 @config_app.command("set")
@@ -42,7 +44,16 @@ def set_value(
     if hasattr(config, key):
         setattr(config, key, value)
         save_config(config, ctx.obj.get("config_dir"))
-        typer.echo(f"Set {key} = {value}")
+        if not ctx.obj["json"]:
+            typer.echo(f"Set {key} = {value}")
+            return
+        output_success(ctx, {"key": key, "value": value})
     else:
-        typer.echo(f"Unknown config key: {key}", err=True)
-        raise typer.Exit(code=1)
+        output_error(
+            ctx,
+            CLIError(
+                exit_code=ExitCode.USER_ERROR,
+                error=f"Unknown config key: {key}",
+                remediation="Run: clinstagram --json config show",
+            ),
+        )

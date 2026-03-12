@@ -5,9 +5,16 @@ from typing import Optional
 import typer
 
 from clinstagram.backends.capabilities import Feature
-from clinstagram.commands._dispatch import dispatch, make_subgroup, stage, strip_at
+from clinstagram.commands._dispatch import dispatch, make_subgroup, preferred_private_backend, stage, strip_at
+from clinstagram.media import is_url
 
 story_app = make_subgroup("Manage stories")
+
+
+def _prefer_private_for_story(ctx: typer.Context, feature: Feature, path: str, link: str) -> str | None:
+    if link or not is_url(path):
+        return preferred_private_backend(ctx, feature)
+    return None
 
 
 @story_app.command("list")
@@ -30,9 +37,12 @@ def post_photo(
 ):
     """Post a photo story."""
     mentions = [strip_at(m) for m in mention] if mention else None
-    dispatch(ctx, Feature.STORY_POST, lambda b: b.story_post_photo(
-        stage(path, ctx.obj["_backend_name"]), mentions, link,
-    ))
+    dispatch(
+        ctx,
+        Feature.STORY_POST,
+        lambda b: b.story_post_photo(stage(path, ctx.obj["_backend_name"]), mentions, link),
+        preferred_backend=_prefer_private_for_story(ctx, Feature.STORY_POST, path, link),
+    )
 
 
 @story_app.command("post-video")
@@ -44,9 +54,12 @@ def post_video(
 ):
     """Post a video story."""
     mentions = [strip_at(m) for m in mention] if mention else None
-    dispatch(ctx, Feature.STORY_POST, lambda b: b.story_post_video(
-        stage(path, ctx.obj["_backend_name"]), mentions, link,
-    ))
+    dispatch(
+        ctx,
+        Feature.STORY_POST,
+        lambda b: b.story_post_video(stage(path, ctx.obj["_backend_name"]), mentions, link),
+        preferred_backend=_prefer_private_for_story(ctx, Feature.STORY_POST, path, link),
+    )
 
 
 @story_app.command("viewers")

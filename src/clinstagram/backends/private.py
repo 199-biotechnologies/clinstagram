@@ -15,16 +15,23 @@ class PrivateAPIError(Exception):
 def _user_to_dict(user: Any) -> dict:
     """Convert an instagrapi User model to a plain dict."""
     return {
-        "pk": str(user.pk),
+        "id": str(user.pk),
         "username": user.username,
-        "full_name": user.full_name,
-        "profile_pic_url": str(user.profile_pic_url) if user.profile_pic_url else None,
-        "is_private": user.is_private,
+        "full_name": getattr(user, "full_name", "") or None,
+        "profile_picture_url": str(user.profile_pic_url) if getattr(user, "profile_pic_url", None) else None,
+        "is_private": getattr(user, "is_private", None),
+        "is_verified": getattr(user, "is_verified", None),
+        "biography": getattr(user, "biography", None),
+        "followers_count": getattr(user, "follower_count", None),
+        "following_count": getattr(user, "following_count", None),
+        "media_count": getattr(user, "media_count", None),
     }
 
 
 def _media_to_dict(media: Any) -> dict:
     """Convert an instagrapi Media model to a plain dict."""
+    media_url = getattr(media, "thumbnail_url", None) or getattr(media, "video_url", None)
+    permalink = getattr(media, "link", None)
     return {
         "id": str(media.pk),
         "code": media.code,
@@ -33,13 +40,19 @@ def _media_to_dict(media: Any) -> dict:
         "timestamp": str(media.taken_at) if media.taken_at else None,
         "like_count": getattr(media, "like_count", 0),
         "comment_count": getattr(media, "comment_count", 0),
+        "media_url": str(media_url) if media_url else None,
+        "permalink": str(permalink) if permalink else None,
     }
 
 
-def _comment_to_dict(comment: Any) -> dict:
+def _comment_to_dict(comment: Any, media_id: str = "") -> dict:
     """Convert an instagrapi Comment model to a plain dict."""
+    comment_id = str(comment.pk)
+    comment_ref = f"{media_id}:{comment_id}" if media_id else comment_id
     return {
-        "id": str(comment.pk),
+        "id": comment_ref,
+        "comment_id": comment_id,
+        "comment_ref": comment_ref,
         "text": comment.text,
         "user": _user_to_dict(comment.user) if comment.user else None,
         "timestamp": str(comment.created_at_utc) if comment.created_at_utc else None,
@@ -59,20 +72,30 @@ def _story_to_dict(story: Any) -> dict:
 
 def _thread_to_dict(thread: Any) -> dict:
     """Convert an instagrapi DirectThread model to a plain dict."""
+    last_item = getattr(thread, "last_permanent_item", None)
+    last_message = None
+    last_message_at = str(thread.last_activity_at) if thread.last_activity_at else None
+    if last_item is not None:
+        last_message = getattr(last_item, "text", None) or getattr(last_item, "message", None)
+        timestamp = getattr(last_item, "timestamp", None)
+        if timestamp:
+            last_message_at = str(timestamp)
     return {
         "thread_id": str(thread.id),
         "thread_title": thread.thread_title,
-        "users": [_user_to_dict(u) for u in (thread.users or [])],
-        "last_activity_at": str(thread.last_activity_at) if thread.last_activity_at else None,
+        "participants": [_user_to_dict(u) for u in (thread.users or [])],
+        "last_message": last_message,
+        "last_message_at": last_message_at,
+        "unread": bool(getattr(thread, "unread_count", 0)),
     }
 
 
 def _message_to_dict(msg: Any) -> dict:
     """Convert an instagrapi DirectMessage model to a plain dict."""
     return {
-        "id": str(msg.id),
+        "message_id": str(msg.id),
         "text": msg.text or "",
-        "user_id": str(msg.user_id) if msg.user_id else None,
+        "sender_id": str(msg.user_id) if msg.user_id else None,
         "timestamp": str(msg.timestamp) if msg.timestamp else None,
         "item_type": getattr(msg, "item_type", None),
     }
@@ -164,6 +187,8 @@ class PrivateBackend(Backend):
         try:
             threads = self._cl.direct_threads(amount=limit)
             results = [_thread_to_dict(t) for t in threads]
+            if unread_only:
+                results = [t for t in results if t["unread"]]
             return results
         except Exception as exc:
             raise _wrap_error("dm_inbox", exc)
@@ -177,8 +202,12 @@ class PrivateBackend(Backend):
 
     def dm_send(self, user: str, message: str) -> dict:
         try:
-            user_ids = [int(self._user_id_from_username(user))]
-            result = self._cl.direct_send(message, user_ids=user_ids)
+            kwargs: dict[str, Any] = {}
+            if user.isdigit():
+                kwargs["thread_ids"] = [user]
+            else:
+                kwargs["user_ids"] = [int(self._user_id_from_username(user))]
+            result = self._cl.direct_send(message, **kwargs)
             return {"message_id": str(result.id) if result else None, "status": "sent"}
         except PrivateAPIError:
             raise
@@ -187,13 +216,17 @@ class PrivateBackend(Backend):
 
     def dm_send_media(self, user: str, media: str) -> dict:
         try:
-            user_ids = [int(self._user_id_from_username(user))]
+            kwargs: dict[str, Any] = {}
+            if user.isdigit():
+                kwargs["thread_ids"] = [user]
+            else:
+                kwargs["user_ids"] = [int(self._user_id_from_username(user))]
             path = Path(media)
             suffix = path.suffix.lower()
             if suffix in (".mp4", ".mov", ".avi"):
-                result = self._cl.direct_send_video(path, user_ids=user_ids)
+                result = self._cl.direct_send_video(path, **kwargs)
             else:
-                result = self._cl.direct_send_photo(path, user_ids=user_ids)
+                result = self._cl.direct_send_photo(path, **kwargs)
             return {"message_id": str(result.id) if result else None, "status": "sent"}
         except PrivateAPIError:
             raise
@@ -284,13 +317,7 @@ class PrivateBackend(Backend):
     def comments_list(self, media_id: str, limit: int = 50) -> list[dict]:
         try:
             comments = self._cl.media_comments(media_id, amount=limit)
-            results = []
-            for c in comments:
-                d = _comment_to_dict(c)
-                # Composite ID for CLI use: media_id:comment_id
-                d["id"] = f"{media_id}:{d['id']}"
-                results.append(d)
-            return results
+            return [_comment_to_dict(c, media_id) for c in comments]
         except Exception as exc:
             raise _wrap_error("comments_list", exc)
 
@@ -302,9 +329,11 @@ class PrivateBackend(Backend):
                 media_id, cid = parts
                 result = self._cl.media_comment(media_id, text, replied_to_comment_id=int(cid))
             else:
-                # Fallback: treat as media_id for top-level comment
-                result = self._cl.media_comment(comment_id, text)
-            return _comment_to_dict(result)
+                raise ValueError(
+                    "Private comment replies require the comment_ref returned by 'comments list' "
+                    "(format: media_id:comment_id)."
+                )
+            return _comment_to_dict(result, media_id)
         except Exception as exc:
             raise _wrap_error("comments_reply", exc)
 
@@ -315,9 +344,11 @@ class PrivateBackend(Backend):
                 media_id, cid = parts
                 self._cl.comment_bulk_delete(media_id, [int(cid)])
             else:
-                # Best-effort: treat as comment PK
-                self._cl.comment_bulk_delete(comment_id, [int(comment_id)])
-            return {"id": comment_id, "status": "deleted"}
+                raise ValueError(
+                    "Private comment deletes require the comment_ref returned by 'comments list' "
+                    "(format: media_id:comment_id)."
+                )
+            return {"comment_ref": comment_id, "status": "deleted"}
         except Exception as exc:
             raise _wrap_error("comments_delete", exc)
 
@@ -330,19 +361,17 @@ class PrivateBackend(Backend):
             account = self._cl.account_info()
             # Account object lacks follower/media counts — fetch via user_info
             info = self._cl.user_info(int(account.pk))
-            return {
-                "username": info.username,
-                "full_name": info.full_name,
-                "followers_count": info.follower_count,
-                "following_count": info.following_count,
-                "media_count": info.media_count,
-                "biography": info.biography,
-            }
+            return _user_to_dict(info)
         except Exception as exc:
             raise _wrap_error("analytics_profile", exc)
 
     def analytics_post(self, media_id: str) -> dict:
         try:
+            if media_id == "latest":
+                medias = self._cl.user_medias(self._cl.user_id, amount=1)
+                if not medias:
+                    raise ValueError("No posts found for the current account")
+                media_id = str(medias[0].pk)
             info = self._cl.media_info(media_id)
             return _media_to_dict(info)
         except Exception as exc:
@@ -405,14 +434,7 @@ class PrivateBackend(Backend):
     def user_info(self, username: str) -> dict:
         try:
             info = self._cl.user_info_by_username(username)
-            return {
-                **_user_to_dict(info),
-                "biography": info.biography,
-                "followers_count": info.follower_count,
-                "following_count": info.following_count,
-                "media_count": info.media_count,
-                "is_verified": info.is_verified,
-            }
+            return _user_to_dict(info)
         except Exception as exc:
             raise _wrap_error("user_info", exc)
 

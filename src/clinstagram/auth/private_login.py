@@ -174,7 +174,7 @@ def login_private(config: LoginConfig, existing_session: str = "") -> LoginResul
 
     Flow:
     1. If existing session exists, try to restore it
-    2. Validate with get_timeline_feed()
+    2. Validate with account_info()
     3. If validation fails, re-login with preserved device UUIDs
     4. If fresh login, perform full login with challenge handling
     5. Return session JSON for storage in keychain
@@ -209,11 +209,6 @@ def login_private(config: LoginConfig, existing_session: str = "") -> LoginResul
         try:
             session_data = json.loads(existing_session)
             cl.set_settings(session_data)
-            
-            # If session exists, and we don't have a password in config,
-            # we should still be able to try validating it.
-            if config.password:
-                cl.login(config.username, config.password)
 
             if _validate_session(cl):
                 logger.info("Session restored successfully for %s", config.username)

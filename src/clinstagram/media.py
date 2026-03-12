@@ -12,9 +12,14 @@ _temp_files: list[Path] = []
 MAX_DOWNLOAD_BYTES = 100 * 1024 * 1024
 
 
-def _is_url(source: str) -> bool:
+def is_url(source: str) -> bool:
     """Return True if source looks like an HTTP(S) URL."""
     return source.startswith("http://") or source.startswith("https://")
+
+
+def _is_url(source: str) -> bool:
+    """Backward-compatible alias for older tests/imports."""
+    return is_url(source)
 
 
 def resolve_media(source: str, needs_url: bool) -> str:
@@ -43,7 +48,7 @@ def resolve_media(source: str, needs_url: bool) -> str:
     httpx.HTTPStatusError
         If downloading a URL fails.
     """
-    if _is_url(source):
+    if is_url(source):
         if needs_url:
             return source
 

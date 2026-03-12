@@ -8,7 +8,9 @@ from rich.console import Console
 from rich.table import Table
 
 from clinstagram.auth.keychain import SecretsStore
-from clinstagram.commands._dispatch import make_subgroup
+from clinstagram.backends.capabilities import CAPABILITY_MATRIX
+from clinstagram.commands._dispatch import make_subgroup, output_error, output_success
+from clinstagram.models import CLIError, ExitCode
 
 console = Console()
 auth_app = make_subgroup("Manage authentication (Graph & Private)")
@@ -29,7 +31,7 @@ def status(ctx: typer.Context):
 
     backends = {}
     for name in ["graph_ig", "graph_fb", "private"]:
-        backends[name] = secrets.has_backend(account, name)
+        backends[name] = {"configured": secrets.has_backend(account, name)}
 
     result = {
         "account": account,
@@ -37,30 +39,72 @@ def status(ctx: typer.Context):
         "backends": backends,
     }
 
-    if ctx.obj["json"]:
-        typer.echo(json.dumps(result, indent=2))
-    else:
+    if not ctx.obj["json"]:
         table = Table(title=f"Auth Status: {account}")
         table.add_column("Backend", style="cyan")
         table.add_column("Status", style="green")
-        for name, active in backends.items():
-            table.add_row(name, "Active" if active else "Not configured")
+        for name, info in backends.items():
+            table.add_row(name, "Configured" if info["configured"] else "Not configured")
         console.print(table)
         console.print(f"Compliance mode: [bold]{config.compliance_mode.value}[/bold]")
+        return
+    output_success(ctx, result)
+
+
+def _store_graph_token(
+    ctx: typer.Context,
+    backend_name: str,
+    token: Optional[str],
+    label: str,
+) -> None:
+    account = ctx.obj["account"]
+    secrets = _get_secrets(ctx)
+    token_key = f"{backend_name}_token"
+    effective_token = token
+    if not effective_token:
+        if ctx.obj["json"]:
+            output_error(
+                ctx,
+                CLIError(
+                    exit_code=ExitCode.USER_ERROR,
+                    error=f"{label} access token is required",
+                    remediation=f"Run: clinstagram auth connect-{backend_name.split('_', 1)[1]} --token <token>",
+                ),
+            )
+        effective_token = typer.prompt(f"{label} access token", hide_input=True)
+
+    secrets.set(account, token_key, effective_token)
+
+    if not ctx.obj["json"]:
+        console.print(f"[green]Stored[/green] {label} token for [bold]{account}[/bold]")
+        return
+    output_success(
+        ctx,
+        {
+            "account": account,
+            "connected": True,
+            "import_method": "manual_token",
+        },
+        backend_used=backend_name,
+    )
 
 
 @auth_app.command("connect-ig")
-def connect_ig(ctx: typer.Context):
-    """Connect via Instagram Login (OAuth). Enables posting, comments, analytics."""
-    typer.echo("Instagram Login OAuth flow — coming in Phase 2.")
-    raise typer.Exit(code=1)
+def connect_ig(
+    ctx: typer.Context,
+    token: Optional[str] = typer.Option(None, "--token", help="Instagram Login access token to store"),
+):
+    """Store an Instagram Login access token for the Graph API."""
+    _store_graph_token(ctx, "graph_ig", token, "Instagram Login")
 
 
 @auth_app.command("connect-fb")
-def connect_fb(ctx: typer.Context):
-    """Connect via Facebook Login (OAuth + Page). Enables DMs, webhooks."""
-    typer.echo("Facebook Login OAuth flow — coming in Phase 2.")
-    raise typer.Exit(code=1)
+def connect_fb(
+    ctx: typer.Context,
+    token: Optional[str] = typer.Option(None, "--token", help="Facebook Login access token to store"),
+):
+    """Store a Facebook Login access token for the Graph API."""
+    _store_graph_token(ctx, "graph_fb", token, "Facebook Login")
 
 
 @auth_app.command("login")
@@ -111,49 +155,107 @@ def login(
         # Store session in keychain
         secrets.set(account, "private_session", result.session_json)
 
-        if ctx.obj["json"]:
-            typer.echo(json.dumps({
-                "status": "success",
-                "username": result.username,
-                "backend": "private",
-                "relogin": result.relogin,
-            }))
-        else:
+        if not ctx.obj["json"]:
             label = "Re-authenticated" if result.relogin else "Logged in"
             console.print(f"[green]{label}[/green] as [bold]{result.username}[/bold] (private API)")
+            return
+        output_success(
+            ctx,
+            {
+                "username": result.username,
+                "relogin": result.relogin,
+            },
+            backend_used="private",
+        )
     else:
-        error_data = {
-            "status": "error",
-            "error": result.error,
-            "challenge_required": result.challenge_required,
-        }
-        if result.remediation:
-            error_data["remediation"] = result.remediation
-        if ctx.obj["json"]:
-            typer.echo(json.dumps(error_data), err=True)
-        else:
+        if not ctx.obj["json"]:
             console.print(f"[red]Login failed:[/red] {result.error}")
             if result.remediation:
                 console.print(f"[yellow]Fix:[/yellow] {result.remediation}")
             if result.challenge_required:
                 console.print("[yellow]Tip:[/yellow] Run login again — Instagram will send a verification code.")
-        raise typer.Exit(code=2)
+            raise typer.Exit(
+                code=ExitCode.CHALLENGE_REQUIRED if result.challenge_required else ExitCode.AUTH_ERROR
+            )
+        output_error(
+            ctx,
+            CLIError(
+                exit_code=ExitCode.CHALLENGE_REQUIRED if result.challenge_required else ExitCode.AUTH_ERROR,
+                error=result.error,
+                remediation=result.remediation or None,
+                challenge_type="instagram" if result.challenge_required else None,
+            ),
+        )
+
+
+def _probe_backend(ctx: typer.Context, backend_name: str) -> dict:
+    account = ctx.obj["account"]
+    secrets = _get_secrets(ctx)
+    configured = secrets.has_backend(account, backend_name)
+    result = {
+        "configured": configured,
+        "reachable": False,
+        "features": sorted(f.value for f in CAPABILITY_MATRIX.get(backend_name, set())),
+    }
+    if not configured:
+        return result
+
+    try:
+        if backend_name.startswith("graph_"):
+            import httpx
+
+            from clinstagram.backends.graph import GraphBackend
+
+            login_type = backend_name.split("_", 1)[1]
+            token = secrets.get(account, f"{backend_name}_token")
+            client = httpx.Client(timeout=10.0)
+            try:
+                backend = GraphBackend(token=token or "", login_type=login_type, client=client)
+                result["account_id"] = backend._me_id()
+            finally:
+                client.close()
+        else:
+            from instagrapi import Client
+
+            from clinstagram.auth.private_login import _validate_session
+
+            session_json = secrets.get(account, "private_session")
+            if not session_json:
+                return result
+            cl = Client()
+            cl.set_settings(json.loads(session_json))
+            proxy = ctx.obj.get("proxy")
+            if proxy:
+                cl.set_proxy(proxy)
+            result["reachable"] = _validate_session(cl)
+            if result["reachable"]:
+                info = cl.account_info()
+                result["username"] = getattr(info, "username", None)
+            return result
+        result["reachable"] = True
+    except Exception as exc:
+        result["error"] = str(exc)
+    return result
 
 
 @auth_app.command("probe")
 def probe(ctx: typer.Context):
-    """Test all backends and report available features."""
+    """Validate configured backends with a lightweight live check."""
     account = ctx.obj["account"]
-    secrets = _get_secrets(ctx)
     result = {"account": account, "backends": {}}
     for name in ["graph_ig", "graph_fb", "private"]:
-        result["backends"][name] = {"active": secrets.has_backend(account, name)}
-    if ctx.obj["json"]:
-        typer.echo(json.dumps(result, indent=2))
-    else:
+        result["backends"][name] = _probe_backend(ctx, name)
+    if not ctx.obj["json"]:
         for name, info in result["backends"].items():
-            s = "Active" if info["active"] else "Not configured"
+            if not info["configured"]:
+                s = "Not configured"
+            elif info["reachable"]:
+                s = "Reachable"
+            else:
+                s = "Configured but failing"
             typer.echo(f"  {name}: {s}")
+        return
+    output_success(ctx, result)
 
 
 @auth_app.command("logout")
@@ -168,4 +270,7 @@ def logout(
     secrets = _get_secrets(ctx)
     for name in ["graph_ig_token", "graph_fb_token", "private_session"]:
         secrets.delete(account, name)
-    typer.echo(f"Cleared sessions for account: {account}")
+    if not ctx.obj["json"]:
+        typer.echo(f"Cleared sessions for account: {account}")
+        return
+    output_success(ctx, {"account": account, "cleared": True})

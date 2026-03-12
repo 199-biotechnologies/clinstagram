@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import sys
 from typing import Any, Callable
 
 import typer
@@ -13,9 +12,9 @@ def make_subgroup(help_text: str) -> typer.Typer:
     sub = typer.Typer(help=help_text, no_args_is_help=True)
     return sub
 
-from clinstagram.auth.keychain import SecretsStore
+from clinstagram.auth.keychain import BACKEND_TOKEN_MAP, SecretsStore
 from clinstagram.backends.base import Backend
-from clinstagram.backends.capabilities import Feature
+from clinstagram.backends.capabilities import Feature, can_backend_do
 from clinstagram.backends.router import Router
 from clinstagram.config import ComplianceMode
 from clinstagram.media import cleanup_temp_files, resolve_media
@@ -115,6 +114,16 @@ def _output_error(ctx: typer.Context, error: CLIError) -> None:
     raise typer.Exit(code=error.exit_code)
 
 
+def output_success(ctx: typer.Context, data: Any, backend_used: str | None = None) -> None:
+    """Emit a standard success envelope."""
+    _output_response(ctx, CLIResponse(data=data, backend_used=backend_used))
+
+
+def output_error(ctx: typer.Context, error: CLIError) -> None:
+    """Emit a standard error envelope and exit."""
+    _output_error(ctx, error)
+
+
 def strip_at(username: str) -> str:
     """Remove leading @ from usernames."""
     return username.lstrip("@")
@@ -142,55 +151,133 @@ def stage(source: str, backend_name: str) -> str:
     return resolve_media(source, needs_url=needs_url)
 
 
+def _backend_remediation(backend_name: str) -> str:
+    if backend_name == "private":
+        return "Run: clinstagram auth login"
+    suffix = backend_name.split("_", 1)[1]
+    return f"Run: clinstagram auth connect-{suffix}"
+
+
+def _backend_is_configured(ctx: typer.Context, backend_name: str) -> bool:
+    token_key = BACKEND_TOKEN_MAP.get(backend_name)
+    if not token_key:
+        return False
+    return _get_secrets(ctx).get(ctx.obj["account"], token_key) is not None
+
+
+def can_use_backend(ctx: typer.Context, feature: Feature, backend_name: str) -> bool:
+    """Return True if a backend is configured, supports the feature, and passes policy."""
+    router = _get_router(ctx)
+    return (
+        _backend_is_configured(ctx, backend_name)
+        and can_backend_do(backend_name, feature)
+        and router._is_allowed_by_policy(backend_name, feature)
+    )
+
+
+def preferred_private_backend(ctx: typer.Context, feature: Feature) -> str | None:
+    """Return 'private' when it is a usable preference for the feature."""
+    if can_use_backend(ctx, feature, "private"):
+        return "private"
+    return None
+
+
+def _forced_backend_error(ctx: typer.Context, feature: Feature, backend_name: str) -> CLIError:
+    config = ctx.obj["config"]
+    router = _get_router(ctx)
+    if not _backend_is_configured(ctx, backend_name):
+        return CLIError(
+            exit_code=ExitCode.AUTH_ERROR,
+            error=f"Backend '{backend_name}' is not configured",
+            remediation=_backend_remediation(backend_name),
+        )
+    if not can_backend_do(backend_name, feature):
+        return CLIError(
+            exit_code=ExitCode.CAPABILITY_UNAVAILABLE,
+            error=f"Backend '{backend_name}' does not support '{feature.value}'",
+            remediation="Retry without --backend or choose a backend that supports this feature",
+        )
+    if not router._is_allowed_by_policy(backend_name, feature):
+        return CLIError(
+            exit_code=ExitCode.POLICY_BLOCKED,
+            error=(
+                f"Feature '{feature.value}' is blocked by compliance mode "
+                f"'{config.compliance_mode.value}' on backend '{backend_name}'"
+            ),
+            remediation="Remove --backend or change compliance mode with: clinstagram config mode private-enabled",
+        )
+    return CLIError(
+        exit_code=ExitCode.CAPABILITY_UNAVAILABLE,
+        error=f"No backend available for '{feature.value}'",
+        remediation="Run: clinstagram auth status  — then connect a backend",
+    )
+
+
+def resolve_backend_name(
+    ctx: typer.Context,
+    feature: Feature,
+    preferred_backend: str | None = None,
+) -> str | None:
+    """Resolve the backend for a feature, enforcing forced-backend policy checks."""
+    forced = ctx.obj.get("backend")
+    if forced and forced.value != "auto":
+        backend_name = forced.value
+        if can_use_backend(ctx, feature, backend_name):
+            return backend_name
+        output_error(ctx, _forced_backend_error(ctx, feature, backend_name))
+
+    if preferred_backend and can_use_backend(ctx, feature, preferred_backend):
+        return preferred_backend
+
+    router = _get_router(ctx)
+    return router.route(feature)
+
+
 def dispatch(
     ctx: typer.Context,
     feature: Feature,
     action: Callable[[Backend], Any],
+    preferred_backend: str | None = None,
 ) -> None:
     """Route feature → backend → call action → output result."""
-    # Check dry-run
-    if ctx.obj.get("dry_run"):
-        router = _get_router(ctx)
-        backend_name = router.route(feature)
-        typer.echo(json.dumps({
-            "dry_run": True,
-            "feature": feature.value,
-            "backend": backend_name,
-        }))
-        return
-
-    # Force backend override
-    forced = ctx.obj.get("backend")
-    if forced and forced.value != "auto":
-        backend_name = forced.value
-    else:
-        router = _get_router(ctx)
-        backend_name = router.route(feature)
+    backend_name = resolve_backend_name(ctx, feature, preferred_backend=preferred_backend)
 
     if backend_name is None:
         # Determine whether it's a policy block or missing backend
         config = ctx.obj["config"]
         if config.compliance_mode == ComplianceMode.OFFICIAL_ONLY:
-            _output_error(ctx, CLIError(
+            output_error(ctx, CLIError(
                 exit_code=ExitCode.POLICY_BLOCKED,
                 error=f"Feature '{feature.value}' is blocked by compliance mode '{config.compliance_mode.value}'",
                 remediation="Run: clinstagram config mode hybrid-safe",
             ))
         else:
-            _output_error(ctx, CLIError(
+            output_error(ctx, CLIError(
                 exit_code=ExitCode.CAPABILITY_UNAVAILABLE,
                 error=f"No backend available for '{feature.value}'",
                 remediation="Run: clinstagram auth status  — then connect a backend",
             ))
         return
 
+    if ctx.obj.get("dry_run"):
+        output_success(
+            ctx,
+            {
+                "dry_run": True,
+                "feature": feature.value,
+                "backend": backend_name,
+            },
+            backend_used=backend_name,
+        )
+        return
+
     try:
         backend = _instantiate_backend(ctx, backend_name, feature)
     except Exception as exc:
-        _output_error(ctx, CLIError(
+        output_error(ctx, CLIError(
             exit_code=ExitCode.AUTH_ERROR,
             error=f"Failed to initialize {backend_name}: {exc}",
-            remediation=f"Run: clinstagram auth {'login' if backend_name == 'private' else 'connect-' + backend_name.split('_')[1]}",
+            remediation=_backend_remediation(backend_name),
         ))
         return
 
@@ -198,12 +285,9 @@ def dispatch(
         # Store backend_name in context for stage() calls in action lambdas
         ctx.obj["_backend_name"] = backend_name
         result = action(backend)
-        _output_response(ctx, CLIResponse(
-            data=result,
-            backend_used=backend_name,
-        ))
+        output_success(ctx, result, backend_used=backend_name)
     except NotImplementedError as exc:
-        _output_error(ctx, CLIError(
+        output_error(ctx, CLIError(
             exit_code=ExitCode.CAPABILITY_UNAVAILABLE,
             error=str(exc),
             remediation="Try a different backend: --backend private",
@@ -211,25 +295,25 @@ def dispatch(
     except Exception as exc:
         error_str = str(exc)
         if "rate" in error_str.lower() or "throttl" in error_str.lower():
-            _output_error(ctx, CLIError(
+            output_error(ctx, CLIError(
                 exit_code=ExitCode.RATE_LIMITED,
                 error=error_str,
                 retry_after=60,
             ))
         elif "challenge" in error_str.lower():
-            _output_error(ctx, CLIError(
+            output_error(ctx, CLIError(
                 exit_code=ExitCode.CHALLENGE_REQUIRED,
                 error=error_str,
                 challenge_type="unknown",
             ))
         elif "login" in error_str.lower() or "auth" in error_str.lower() or "session" in error_str.lower():
-            _output_error(ctx, CLIError(
+            output_error(ctx, CLIError(
                 exit_code=ExitCode.AUTH_ERROR,
                 error=error_str,
                 remediation="Run: clinstagram auth login",
             ))
         else:
-            _output_error(ctx, CLIError(
+            output_error(ctx, CLIError(
                 exit_code=ExitCode.API_ERROR,
                 error=error_str,
             ))

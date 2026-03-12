@@ -3,7 +3,7 @@ from __future__ import annotations
 import typer
 
 from clinstagram.backends.capabilities import Feature
-from clinstagram.commands._dispatch import _require_growth, dispatch, make_subgroup
+from clinstagram.commands._dispatch import _require_growth, dispatch, make_subgroup, preferred_private_backend
 
 comments_app = make_subgroup("Manage comments")
 
@@ -21,12 +21,18 @@ def list_comments(
 @comments_app.command("reply")
 def reply(
     ctx: typer.Context,
-    comment_id: str = typer.Argument(..., help="Comment ID (media_id:comment_id from 'comments list')"),
+    comment_id: str = typer.Argument(..., help="Comment reference from 'comments list'"),
     text: str = typer.Argument(..., help="Reply text"),
 ):
     """Reply to a comment. Requires --enable-growth-actions."""
     _require_growth(ctx)
-    dispatch(ctx, Feature.COMMENTS_REPLY, lambda b: b.comments_reply(comment_id, text))
+    preferred_backend = preferred_private_backend(ctx, Feature.COMMENTS_REPLY) if ":" in comment_id else None
+    dispatch(
+        ctx,
+        Feature.COMMENTS_REPLY,
+        lambda b: b.comments_reply(comment_id, text),
+        preferred_backend=preferred_backend,
+    )
 
 
 @comments_app.command("add")
@@ -44,7 +50,13 @@ def add(
 @comments_app.command("delete")
 def delete(
     ctx: typer.Context,
-    comment_id: str = typer.Argument(..., help="Comment ID (media_id:comment_id from 'comments list')"),
+    comment_id: str = typer.Argument(..., help="Comment reference from 'comments list'"),
 ):
     """Delete a comment."""
-    dispatch(ctx, Feature.COMMENTS_DELETE, lambda b: b.comments_delete(comment_id))
+    preferred_backend = preferred_private_backend(ctx, Feature.COMMENTS_DELETE) if ":" in comment_id else None
+    dispatch(
+        ctx,
+        Feature.COMMENTS_DELETE,
+        lambda b: b.comments_delete(comment_id),
+        preferred_backend=preferred_backend,
+    )

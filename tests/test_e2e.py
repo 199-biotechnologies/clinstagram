@@ -16,7 +16,7 @@ def test_full_workflow(tmp_path, monkeypatch):
     result = runner.invoke(app, ["--json", "config", "show"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
-    assert data["compliance_mode"] == "hybrid-safe"
+    assert data["data"]["compliance_mode"] == "hybrid-safe"
 
     # Set mode
     result = runner.invoke(app, ["config", "mode", "official-only"])
@@ -26,15 +26,15 @@ def test_full_workflow(tmp_path, monkeypatch):
     result = runner.invoke(app, ["--json", "config", "show"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
-    assert data["compliance_mode"] == "official-only"
+    assert data["data"]["compliance_mode"] == "official-only"
 
     # Auth status (no backends configured)
     result = runner.invoke(app, ["--json", "auth", "status"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
-    assert data["backends"]["graph_ig"] is False
-    assert data["backends"]["graph_fb"] is False
-    assert data["backends"]["private"] is False
+    assert data["data"]["backends"]["graph_ig"]["configured"] is False
+    assert data["data"]["backends"]["graph_fb"]["configured"] is False
+    assert data["data"]["backends"]["private"]["configured"] is False
 
 
 def test_version_flag():

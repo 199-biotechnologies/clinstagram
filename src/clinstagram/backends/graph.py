@@ -87,6 +87,75 @@ class GraphBackend(Backend):
     def _delete(self, path: str) -> Any:
         return _check(self._client.delete(self._url(path), params=self._params()))
 
+    def _normalize_user(self, data: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "id": str(data["id"]) if data.get("id") is not None else None,
+            "username": data.get("username"),
+            "full_name": data.get("full_name") or data.get("name"),
+            "profile_picture_url": data.get("profile_picture_url") or data.get("profile_pic_url"),
+            "is_private": data.get("is_private"),
+            "is_verified": data.get("is_verified"),
+            "biography": data.get("biography"),
+            "followers_count": data.get("followers_count"),
+            "following_count": data.get("following_count", data.get("follows_count")),
+            "media_count": data.get("media_count"),
+        }
+
+    def _normalize_media(self, data: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "id": str(data["id"]),
+            "code": data.get("shortcode") or data.get("code"),
+            "media_type": data.get("media_type"),
+            "caption": data.get("caption", ""),
+            "timestamp": data.get("timestamp"),
+            "like_count": data.get("like_count", 0),
+            "comment_count": data.get("comment_count", data.get("comments_count", 0)),
+            "media_url": data.get("media_url"),
+            "permalink": data.get("permalink"),
+        }
+
+    def _normalize_comment(self, data: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "id": str(data["id"]),
+            "comment_id": str(data["id"]),
+            "comment_ref": str(data["id"]),
+            "text": data.get("text", ""),
+            "user": self._normalize_user(data["from"]) if isinstance(data.get("from"), dict) else None,
+            "timestamp": data.get("timestamp"),
+        }
+
+    def _normalize_thread(self, data: dict[str, Any]) -> dict[str, Any]:
+        participants = [
+            self._normalize_user(participant)
+            for participant in data.get("participants", {}).get("data", [])
+        ]
+        messages = data.get("messages", {}).get("data", [])
+        last_message = messages[0] if messages else {}
+        thread_title = ", ".join(
+            participant["username"] or participant["full_name"] or participant["id"] or ""
+            for participant in participants
+            if participant["username"] or participant["full_name"] or participant["id"]
+        )
+        return {
+            "thread_id": str(data["id"]),
+            "thread_title": thread_title or None,
+            "participants": participants,
+            "last_message": last_message.get("message"),
+            "last_message_at": last_message.get("created_time") or data.get("updated_time"),
+            "unread": bool(data["unread_count"]) if data.get("unread_count") is not None else None,
+        }
+
+    def _normalize_message(self, data: dict[str, Any]) -> dict[str, Any]:
+        sender = data.get("from") or {}
+        return {
+            "message_id": str(data["id"]),
+            "text": data.get("message", ""),
+            "sender_id": str(sender["id"]) if sender.get("id") is not None else None,
+            "sender_username": sender.get("username"),
+            "timestamp": data.get("created_time"),
+            "item_type": "text",
+        }
+
     def _require_fb(self, feature: str) -> None:
         if self._login_type != "fb":
             raise NotImplementedError(
@@ -114,7 +183,9 @@ class GraphBackend(Backend):
         if location:
             payload["location_id"] = location
         if tags:
-            payload["user_tags"] = ",".join(tags)
+            payload["user_tags"] = _json.dumps(
+                [{"username": tag, "x": 0.5, "y": 0.5} for tag in tags]
+            )
 
         # Step 1: create media container
         container = self._post(f"{me}/media", payload)
@@ -132,6 +203,11 @@ class GraphBackend(Backend):
         if caption:
             payload["caption"] = caption
         if thumbnail:
+            if not thumbnail.isdigit():
+                raise ValueError(
+                    "Graph API expects --thumbnail to be a millisecond thumb offset. "
+                    "Use a numeric value or route through --backend private."
+                )
             payload["thumb_offset"] = thumbnail
         if location:
             payload["location_id"] = location
@@ -149,6 +225,11 @@ class GraphBackend(Backend):
         if caption:
             payload["caption"] = caption
         if thumbnail:
+            if not thumbnail.isdigit():
+                raise ValueError(
+                    "Graph API expects --thumbnail to be a millisecond thumb offset. "
+                    "Use a numeric value or route through --backend private."
+                )
             payload["thumb_offset"] = thumbnail
         if audio:
             payload["audio_name"] = audio
@@ -192,32 +273,27 @@ class GraphBackend(Backend):
         self._require_fb("DM inbox")
         me = self._me_id()
         params: dict[str, Any] = {
-            "fields": "id,participants,messages{id,message,from,created_time}",
+            "fields": (
+                "id,updated_time,unread_count,"
+                "participants{id,username,name},"
+                "messages.limit(1){id,message,from{id,username,name},created_time}"
+            ),
             "limit": str(limit),
         }
         data = self._get(f"{me}/conversations", params)
         threads = data.get("data", [])
         if unread_only:
-            # Graph API doesn't natively filter unread; filter client-side would need
-            # additional logic. Return all for now.
-            pass
-        return [
-            {
-                "thread_id": t["id"],
-                "participants": t.get("participants", {}).get("data", []),
-                "messages": t.get("messages", {}).get("data", []),
-            }
-            for t in threads
-        ]
+            threads = [t for t in threads if t.get("unread_count", 0) > 0]
+        return [self._normalize_thread(thread) for thread in threads]
 
     def dm_thread(self, thread_id: str, limit: int = 20) -> list[dict]:
         self._require_fb("DM thread")
         params = {
-            "fields": "id,message,from,created_time",
+            "fields": "id,message,from{id,username,name},created_time",
             "limit": str(limit),
         }
         data = self._get(f"{thread_id}/messages", params)
-        return data.get("data", [])
+        return [self._normalize_message(message) for message in data.get("data", [])]
 
     def dm_send(self, user: str, message: str) -> dict:
         self._require_fb("DM send")
@@ -232,9 +308,10 @@ class GraphBackend(Backend):
     def dm_send_media(self, user: str, media: str) -> dict:
         self._require_fb("DM send media")
         me = self._me_id()
+        media_type = "video" if media.lower().split("?", 1)[0].endswith((".mp4", ".mov", ".avi")) else "image"
         payload = {
             "recipient": _json.dumps({"id": user}),
-            "message": _json.dumps({"attachment": {"type": "image", "payload": {"url": media}}}),
+            "message": _json.dumps({"attachment": {"type": media_type, "payload": {"url": media}}}),
         }
         result = self._post(f"{me}/messages", payload)
         return {"message_id": result.get("message_id", result.get("id")), "status": "sent"}
@@ -253,10 +330,17 @@ class GraphBackend(Backend):
         self, media: str, mentions: list[str] | None = None, link: str = ""
     ) -> dict:
         self._require_fb("Story photo post")
+        if link:
+            raise ValueError(
+                "Graph story publishing does not support link stickers through this CLI. "
+                "Use --backend private for story links."
+            )
         me = self._me_id()
         payload: dict[str, Any] = {"image_url": media, "media_type": "STORIES"}
-        if link:
-            payload["link"] = link
+        if mentions:
+            payload["user_tags"] = _json.dumps(
+                [{"username": mention, "x": 0.5, "y": 0.5} for mention in mentions]
+            )
 
         container = self._post(f"{me}/media", payload)
         container_id = container["id"]
@@ -267,10 +351,17 @@ class GraphBackend(Backend):
         self, media: str, mentions: list[str] | None = None, link: str = ""
     ) -> dict:
         self._require_fb("Story video post")
+        if link:
+            raise ValueError(
+                "Graph story publishing does not support link stickers through this CLI. "
+                "Use --backend private for story links."
+            )
         me = self._me_id()
         payload: dict[str, Any] = {"video_url": media, "media_type": "STORIES"}
-        if link:
-            payload["link"] = link
+        if mentions:
+            payload["user_tags"] = _json.dumps(
+                [{"username": mention, "x": 0.5, "y": 0.5} for mention in mentions]
+            )
 
         container = self._post(f"{me}/media", payload)
         container_id = container["id"]
@@ -292,15 +383,15 @@ class GraphBackend(Backend):
             "limit": str(limit),
         }
         data = self._get(f"{media_id}/comments", params)
-        return data.get("data", [])
+        return [self._normalize_comment(comment) for comment in data.get("data", [])]
 
     def comments_reply(self, comment_id: str, text: str) -> dict:
         result = self._post(f"{comment_id}/replies", {"message": text})
-        return {"id": result["id"], "status": "replied"}
+        return {"comment_ref": str(result["id"]), "status": "replied"}
 
     def comments_delete(self, comment_id: str) -> dict:
         self._delete(comment_id)
-        return {"id": comment_id, "status": "deleted"}
+        return {"comment_ref": comment_id, "status": "deleted"}
 
     # ------------------------------------------------------------------
     # Analytics
@@ -309,15 +400,22 @@ class GraphBackend(Backend):
     def analytics_profile(self) -> dict:
         me = self._me_id()
         params = {
-            "fields": "followers_count,follows_count,media_count,name,username",
+            "fields": "id,followers_count,follows_count,media_count,name,username,biography,profile_picture_url",
         }
-        return self._get(me, params)
+        return self._normalize_user(self._get(me, params))
 
     def analytics_post(self, media_id: str) -> dict:
+        if media_id == "latest":
+            me = self._me_id()
+            latest = self._get(f"{me}/media", {"fields": "id", "limit": "1"})
+            items = latest.get("data", [])
+            if not items:
+                raise ValueError("No posts found for the current account")
+            media_id = str(items[0]["id"])
         params = {
-            "fields": "id,like_count,comments_count,timestamp,media_type,permalink",
+            "fields": "id,caption,like_count,comments_count,timestamp,media_type,media_url,permalink,shortcode",
         }
-        return self._get(media_id, params)
+        return self._normalize_media(self._get(media_id, params))
 
     def analytics_hashtag(self, tag: str) -> dict:
         me = self._me_id()
@@ -370,11 +468,14 @@ class GraphBackend(Backend):
             "fields": f"business_discovery.fields(id,username,name,biography,followers_count,follows_count,media_count,profile_picture_url).username({username})",
         }
         data = self._get(me, params)
-        return data.get("business_discovery", {})
+        business = data.get("business_discovery", {})
+        return self._normalize_user(business) if business else {}
 
     def user_search(self, query: str) -> list[dict]:
         # Graph API has no direct user search endpoint.
         # Use business_discovery as a single-user lookup fallback.
+        if any(ch.isspace() for ch in query.strip()):
+            return []
         try:
             info = self.user_info(query)
             return [info] if info else []
@@ -389,7 +490,7 @@ class GraphBackend(Backend):
         data = self._get(me, params)
         business = data.get("business_discovery", {})
         media = business.get("media", {})
-        return media.get("data", [])
+        return [self._normalize_media(item) for item in media.get("data", [])]
 
     # ------------------------------------------------------------------
     # Engagement
@@ -433,7 +534,7 @@ class GraphBackend(Backend):
             "limit": str(limit),
         }
         data = self._get(f"{hashtag_id}/top_media", params)
-        return data.get("data", [])
+        return [self._normalize_media(item) for item in data.get("data", [])]
 
     def hashtag_recent(self, tag: str, limit: int = 20) -> list[dict]:
         hashtag_id = self._hashtag_id(tag)
@@ -446,4 +547,4 @@ class GraphBackend(Backend):
             "limit": str(limit),
         }
         data = self._get(f"{hashtag_id}/recent_media", params)
-        return data.get("data", [])
+        return [self._normalize_media(item) for item in data.get("data", [])]

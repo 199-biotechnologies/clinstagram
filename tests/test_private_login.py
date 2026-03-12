@@ -85,8 +85,9 @@ class TestConfigureClient:
 class TestValidateSession:
     def test_valid(self):
         client = MagicMock()
-        client.get_timeline_feed.return_value = {"items": []}
+        client.account_info.return_value = MagicMock()
         assert _validate_session(client) is True
+        client.account_info.assert_called_once()
 
     def test_invalid(self):
         client = MagicMock()
@@ -125,7 +126,7 @@ class TestLoginPrivate:
 
         assert result.success is True
         cl.set_settings.assert_called_once()
-        cl.login.assert_called_once_with("testuser", "pass123")
+        cl.login.assert_not_called()
 
     @patch("instagrapi.Client")
     @patch("clinstagram.auth.private_login._validate_session")
@@ -370,9 +371,9 @@ class TestLoginCommand:
 
         assert result.exit_code == 0
         data = json.loads(result.output)
-        assert data["status"] == "success"
-        assert data["username"] == "testuser"
-        assert data["backend"] == "private"
+        assert data["data"]["username"] == "testuser"
+        assert data["data"]["relogin"] is False
+        assert data["backend_used"] == "private"
 
     @patch("clinstagram.auth.private_login.login_private")
     def test_login_command_failure(self, mock_login):

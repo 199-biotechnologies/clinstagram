@@ -58,7 +58,6 @@ CAPABILITY_MATRIX: dict[str, set[Feature]] = {
         Feature.COMMENTS_ADD,
         Feature.ANALYTICS_PROFILE, Feature.ANALYTICS_POST, Feature.ANALYTICS_HASHTAG,
         Feature.HASHTAG_TOP, Feature.HASHTAG_RECENT,
-        Feature.USER_INFO, Feature.USER_SEARCH,
     },
     "graph_fb": {
         Feature.POST_PHOTO, Feature.POST_VIDEO, Feature.POST_REEL, Feature.POST_CAROUSEL,

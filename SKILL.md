@@ -4,7 +4,7 @@ description: >
   Full Instagram CLI — posting, DMs, stories, analytics, followers, hashtags, likes, comments.
   Supports Meta Graph API (official, safe) and private API (full features).
   Three compliance modes: official-only, hybrid-safe, private-enabled.
-metadata: {"openclaw": {"requires": {"bins": ["clinstagram"], "env": ["CLINSTAGRAM_CONFIG_DIR"]}, "primaryEnv": "CLINSTAGRAM_SECRETS_FILE", "emoji": "📸", "homepage": "https://github.com/199-biotechnologies/clinstagram", "install": [{"pip": "clinstagram"}]}}
+metadata: {"openclaw": {"requires": {"bins": ["clinstagram"], "env": ["CLINSTAGRAM_CONFIG_DIR"]}, "primaryEnv": "CLINSTAGRAM_CONFIG_DIR", "emoji": "📸", "homepage": "https://github.com/199-biotechnologies/clinstagram", "install": [{"pip": "clinstagram"}]}}
 ---
 
 # clinstagram
@@ -32,14 +32,17 @@ Global flags: `--json`, `--account NAME`, `--backend auto|graph_ig|graph_fb|priv
 # Check status
 clinstagram --json auth status
 
+# Live-check configured credentials
+clinstagram --json auth probe
+
 # Set compliance mode
 clinstagram config mode official-only    # Graph API only, zero risk
 clinstagram config mode hybrid-safe      # Graph primary, private read-only (default)
 clinstagram config mode private-enabled  # Full access, user accepts risk
 
 # Connect backends
-clinstagram auth connect-ig   # Instagram Login (posting, comments, analytics)
-clinstagram auth connect-fb   # Facebook Login (adds DMs, stories, webhooks)
+clinstagram auth connect-ig --token ...   # Store Instagram Login token
+clinstagram auth connect-fb --token ...   # Store Facebook Login token
 clinstagram auth login         # Private API (username/password/2FA via instagrapi)
 ```
 
@@ -47,14 +50,14 @@ clinstagram auth login         # Private API (username/password/2FA via instagra
 
 | Group | Commands | Notes |
 |-------|----------|-------|
-| `auth` | `status`, `login`, `connect-ig`, `connect-fb`, `probe`, `logout` | Start with `auth status --json` |
-| `post` | `photo`, `video`, `reel`, `carousel` | Accepts local paths or URLs |
-| `dm` | `inbox`, `thread ID`, `send @user "text"`, `send-media`, `search` | Cold DMs = private API only |
+| `auth` | `status`, `login`, `connect-ig`, `connect-fb`, `probe`, `logout` | `status` is configured-only; `probe` is live validation |
+| `post` | `photo`, `video`, `reel`, `carousel` | Local write media requires `private-enabled` or a public URL |
+| `dm` | `inbox`, `thread ID\|@user`, `send @user "text"`, `send-media`, `search` | Cold DMs = private API only; numeric target = reply |
 | `story` | `list [@user]`, `post-photo`, `post-video`, `viewers ID` | |
-| `comments` | `list MEDIA_ID`, `add`, `reply`, `delete` | add/reply need `--enable-growth-actions` |
+| `comments` | `list MEDIA_ID`, `add`, `reply`, `delete` | pass the `comment_ref` from `comments list` |
 | `analytics` | `profile`, `post ID\|latest`, `hashtag TAG` | |
 | `followers` | `list`, `following`, `follow @user`, `unfollow @user` | follow/unfollow need `--enable-growth-actions` |
-| `user` | `info @user`, `search QUERY`, `posts @user` | |
+| `user` | `info @user`, `search QUERY`, `posts @user` | official search is username-style lookup, broad search is private |
 | `hashtag` | `top TAG`, `recent TAG` | |
 | `like` | `post MEDIA_ID`, `undo MEDIA_ID` | Needs `--enable-growth-actions` |
 | `config` | `show`, `mode MODE`, `set KEY VAL` | Modes: `official-only`, `hybrid-safe`, `private-enabled` |
@@ -94,7 +97,7 @@ clinstagram --json auth status
 clinstagram --json auth probe
 
 # 3. Preview before acting
-clinstagram --dry-run --json post photo img.jpg --caption "test"
+clinstagram --dry-run --json post photo https://example.com/img.jpg --caption "test"
 
 # 4. Execute
 clinstagram --json dm inbox --unread --limit 20
@@ -120,6 +123,7 @@ Follow, unfollow, like, unlike, comment add/reply require `--enable-growth-actio
 | Hashtag | Y | Y | Y |
 
 Preference order: `graph_ig` > `graph_fb` > `private`. Override with `--backend`.
+Overrides are still checked against compliance mode.
 
 ## Examples
 
@@ -128,9 +132,10 @@ Preference order: `graph_ig` > `graph_fb` > `private`. Override with `--backend`
 clinstagram --json dm inbox --unread
 
 # Reply to a message
-clinstagram --json dm send @alice "Thanks!"
+clinstagram --json dm send 123456789 "Thanks!"
 
 # Post a photo
+clinstagram config mode private-enabled
 clinstagram --json post photo /path/to/img.jpg --caption "Hello world"
 
 # Get analytics
