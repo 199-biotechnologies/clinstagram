@@ -1,0 +1,5057 @@
+clinstagram ChatGPT Review Bundle
+
+Repository root: /Users/biobook/Projects/clinstagram
+Included files: 44
+
+Included paths:
+- README.md
+- SKILL.md
+- pyproject.toml
+- src/clinstagram/__init__.py
+- src/clinstagram/auth/__init__.py
+- src/clinstagram/auth/keychain.py
+- src/clinstagram/auth/private_login.py
+- src/clinstagram/backends/__init__.py
+- src/clinstagram/backends/base.py
+- src/clinstagram/backends/capabilities.py
+- src/clinstagram/backends/graph.py
+- src/clinstagram/backends/private.py
+- src/clinstagram/backends/router.py
+- src/clinstagram/cli.py
+- src/clinstagram/commands/__init__.py
+- src/clinstagram/commands/_dispatch.py
+- src/clinstagram/commands/analytics.py
+- src/clinstagram/commands/auth.py
+- src/clinstagram/commands/comments.py
+- src/clinstagram/commands/config_cmd.py
+- src/clinstagram/commands/dm.py
+- src/clinstagram/commands/followers.py
+- src/clinstagram/commands/hashtag.py
+- src/clinstagram/commands/like.py
+- src/clinstagram/commands/post.py
+- src/clinstagram/commands/story.py
+- src/clinstagram/commands/user.py
+- src/clinstagram/config.py
+- src/clinstagram/media.py
+- src/clinstagram/models.py
+- tests/__init__.py
+- tests/conftest.py
+- tests/test_backends_base.py
+- tests/test_capabilities.py
+- tests/test_cli.py
+- tests/test_config.py
+- tests/test_config_persistence.py
+- tests/test_dispatch.py
+- tests/test_e2e.py
+- tests/test_keychain.py
+- tests/test_media.py
+- tests/test_models.py
+- tests/test_private_login.py
+- tests/test_router.py
+
+====================================================================================================
+FILE: README.md
+----------------------------------------------------------------------------------------------------
+<p align="center">
+  <img src="assets/logo.png" alt="clinstagram" width="128">
+</p>
+
+<h1 align="center">clinstagram</h1>
+
+<p align="center">
+  <strong>The Instagram CLI that AI agents actually use.</strong><br>
+  Meta Graph API + instagrapi private API in one tool. Built for <a href="https://github.com/openclaw/openclaw">OpenClaw</a>.
+</p>
+
+<p align="center">
+  <a href="#install">Install</a> •
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#commands">Commands</a> •
+  <a href="#for-agents">For Agents</a> •
+  <a href="#compliance-modes">Safety</a> •
+  <a href="#architecture">Architecture</a>
+</p>
+
+---
+
+## Why
+
+Every Instagram automation tool makes you choose: **official API** (safe but limited) or **private API** (full-featured but risky). clinstagram gives you both behind one CLI, with policy-driven routing that picks the safest path automatically.
+
+```bash
+# This command automatically routes through the official Graph API
+# if you have a Business account, or falls back to private API if not
+$ clinstagram --json dm inbox
+[{"thread_id": "839201", "username": "alice", "last_message": "hey!", "unread": true, "backend_used": "graph_fb"}]
+```
+
+No browser automation. No Playwright. No bot detection. Just structured CLI commands with JSON output.
+
+## Install
+
+Requires **Python 3.10+**.
+
+```bash
+pip install clinstagram
+```
+
+Or install from source (recommended for development):
+
+```bash
+git clone https://github.com/199-biotechnologies/clinstagram.git
+cd clinstagram
+pip install -e ".[dev]"
+```
+
+Verify it works:
+
+```bash
+clinstagram --version
+# clinstagram 0.1.0
+```
+
+## Quick Start
+
+```bash
+# 1. Login (username, email, or phone — locale auto-detected from your system)
+clinstagram auth login -u your_username
+
+# 2. Check what's configured
+clinstagram auth status
+
+# 3. Use it
+clinstagram --json dm inbox
+clinstagram --json analytics profile
+clinstagram --json post photo cat.jpg --caption "via clinstagram"
+```
+
+> **Important:** `--json`, `--proxy`, and `--account` are **global flags** — they go **before** the command:
+> ```bash
+> clinstagram --json dm inbox          # correct
+> clinstagram dm inbox --json          # WRONG — will error
+> ```
+
+## Commands
+
+### Auth
+```bash
+clinstagram auth status          # Show which backends are active
+clinstagram auth connect-ig      # OAuth via Instagram Login
+clinstagram auth connect-fb      # OAuth via Facebook Login (enables DMs)
+clinstagram auth login -u user   # Private API (username, email, or phone)
+clinstagram auth probe           # Test all backends, report capabilities
+clinstagram auth logout --yes    # Clear all stored sessions
+```
+
+### Post
+```bash
+clinstagram --json post photo <path|url> --caption "..." --tags "@user"
+clinstagram --json post video <path|url> --caption "..."
+clinstagram --json post reel <path|url> --caption "..."
+clinstagram --json post carousel img1.jpg img2.jpg --caption "..."
+```
+
+### Direct Messages
+```bash
+clinstagram --json dm inbox --unread --limit 10
+clinstagram --json dm thread @alice --limit 20
+clinstagram --json dm send @alice "Thanks for reaching out!"
+clinstagram --json dm send-media @alice photo.jpg
+clinstagram --json dm search "project"
+```
+
+### Stories
+```bash
+clinstagram --json story list
+clinstagram --json story list @alice
+clinstagram --json story post-photo photo.jpg --mention @alice
+clinstagram --json story post-video clip.mp4 --link "https://..."
+clinstagram --json story viewers <story_id>
+```
+
+### Comments
+```bash
+clinstagram --json comments list <media_id> --limit 50
+clinstagram --json comments reply <comment_id> "Great point!"
+clinstagram --json comments delete <comment_id>
+```
+
+### Analytics
+```bash
+clinstagram --json analytics profile
+clinstagram --json analytics post <media_id>
+clinstagram --json analytics hashtag "photography"
+```
+
+### Followers
+```bash
+clinstagram --json followers list --limit 100
+clinstagram --json followers following
+clinstagram --json --enable-growth-actions followers follow @user    # Disabled by default
+clinstagram --json --enable-growth-actions followers unfollow @user
+```
+
+### User
+```bash
+clinstagram --json user info @username
+clinstagram --json user search "john doe"
+clinstagram --json user posts @username --limit 10
+```
+
+### Config
+```bash
+clinstagram --json config show
+clinstagram config mode official-only     # Zero risk
+clinstagram config mode hybrid-safe       # Official + private read-only (default)
+clinstagram config mode private-enabled   # Full access
+clinstagram config set proxy socks5://localhost:1080
+```
+
+## Global Flags
+
+Global flags go **before** the command name.
+
+| Flag | Description |
+|------|-------------|
+| `--json` | JSON output (auto-enabled when piped) |
+| `--account <name>` | Switch between stored accounts |
+| `--backend auto\|graph_ig\|graph_fb\|private` | Force a specific backend |
+| `--proxy <url>` | SOCKS5/HTTP proxy for private API |
+| `--dry-run` | Preview without executing |
+| `--enable-growth-actions` | Unlock follow/unfollow |
+
+## For Agents
+
+clinstagram is designed to be called by AI agents like OpenClaw. Every command:
+
+- Returns **structured JSON** with `--json` (auto-detected when piped)
+- Includes `backend_used` field so agents know which path was taken
+- Uses **exit codes** for machine-readable error handling:
+
+| Exit Code | Meaning | Agent Action |
+|-----------|---------|--------------|
+| 0 | Success | Parse JSON |
+| 1 | Bad arguments | Fix command |
+| 2 | Auth error | Run `auth login` or `auth connect-*` |
+| 3 | Rate limited | Retry after `retry_after` seconds |
+| 4 | API error | Retry or report |
+| 5 | Challenge required | Prompt user (2FA/email) |
+| 6 | Policy blocked | Change compliance mode |
+| 7 | Capability unavailable | Connect additional backend |
+
+Every error includes a `remediation` field with the exact command to fix it:
+```json
+{"exit_code": 2, "error": "session_expired", "remediation": "Run: clinstagram auth login"}
+```
+
+### OpenClaw Skill
+
+Drop clinstagram into your OpenClaw workspace:
+```bash
+pip install clinstagram
+# Or paste the GitHub URL into your OpenClaw chat
+```
+
+The included `SKILL.md` tells OpenClaw what commands are available.
+
+## Compliance Modes
+
+clinstagram routes commands through three backends with **policy-driven safety**:
+
+| Mode | Official API | Private API | Risk |
+|------|-------------|-------------|------|
+| `official-only` | Full | Disabled | Zero |
+| `hybrid-safe` | Full | Read-only | Low |
+| `private-enabled` | Full | Full | High |
+
+**Default is `hybrid-safe`** — you get official API for everything it supports, plus private API for read-only operations like viewing stories or listing followers.
+
+### Three Backends
+
+| Backend | Auth | Best For |
+|---------|------|----------|
+| `graph_ig` | Instagram Login (OAuth) | Posting, comments, analytics. No Facebook Page needed. |
+| `graph_fb` | Facebook Login (OAuth) | Everything above + DMs, webhooks, story publishing. Needs linked Page. |
+| `private` | Username/password/2FA | Everything. Personal accounts. Cold DMs. Requires proxy. |
+
+The router **always prefers official APIs**. Private API is only used when:
+1. The feature isn't available via Graph API (e.g., cold DMs, story viewing)
+2. Your compliance mode allows it
+3. You have a valid private session
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────┐
+│                  CLI Layer                    │
+│   typer + rich (--json / human output)       │
+├─────────────────────────────────────────────┤
+│              Policy Router                   │
+│   CAPABILITY_MATRIX × ComplianceMode         │
+│   → picks best backend per command           │
+├──────────┬──────────┬───────────────────────┤
+│ graph_ig │ graph_fb │      private          │
+│ (OAuth)  │ (OAuth)  │   (instagrapi)        │
+│ Post     │ Post+DM  │   Everything          │
+│ Comments │ Stories  │   + proxy support     │
+│ Analytics│ Webhooks │   + session persist   │
+├──────────┴──────────┴───────────────────────┤
+│              Config Layer                    │
+│   TOML config, rate limits, compliance       │
+├─────────────────────────────────────────────┤
+│              Secrets                         │
+│   OS Keychain (macOS/Linux/Windows)          │
+│   Fallback: encrypted file for CI            │
+└─────────────────────────────────────────────┘
+```
+
+### Key Design Decisions
+
+- **Policy-driven routing** — Commands are routed based on a capability matrix and compliance mode, not by catching errors and falling back.
+- **Graph DMs are reply-only** — Meta's Messaging API only works within a 24-hour window after the user messages you. Cold DMs require private API.
+- **Growth actions disabled by default** — `follow`/`unfollow` require `--enable-growth-actions` flag.
+- **Mandatory proxy for private API** — Protects against IP-based detection on cloud VPS.
+- **OS keychain for secrets** — No plaintext tokens on disk. Sessions persisted in keychain with device UUID preservation.
+
+## Rate Limits
+
+```toml
+# ~/.clinstagram/config.toml
+[rate_limits]
+graph_dm_per_hour = 200       # Meta's hard limit
+private_dm_per_hour = 30      # Conservative default
+private_follows_per_day = 20  # Well below Instagram's threshold
+request_delay_min = 2.0       # Seconds between private API write calls
+request_delay_max = 5.0       # Read-only ops use [0, delay_min] for speed
+request_jitter = true         # Randomized within delay range
+```
+
+## Development
+
+```bash
+git clone https://github.com/199-biotechnologies/clinstagram.git
+cd clinstagram
+pip install -e ".[dev]"
+pytest tests/ -v   # 120 tests
+```
+
+## License
+
+MIT
+
+## Credits
+
+- [instagrapi](https://github.com/subzeroid/instagrapi) — Instagram Private API wrapper
+- [OpenClaw](https://github.com/openclaw/openclaw) — AI agent platform
+- [Typer](https://typer.tiangolo.com/) — CLI framework
+- Built by [199 Biotechnologies](https://github.com/199-biotechnologies)
+----------------------------------------------------------------------------------------------------
+END FILE: README.md
+
+FILE: SKILL.md
+----------------------------------------------------------------------------------------------------
+---
+name: clinstagram
+description: >
+  Full Instagram CLI — posting, DMs, stories, analytics, followers, hashtags, likes, comments.
+  Supports Meta Graph API (official, safe) and private API (full features).
+  Three compliance modes: official-only, hybrid-safe, private-enabled.
+metadata: {"openclaw": {"requires": {"bins": ["clinstagram"], "env": ["CLINSTAGRAM_CONFIG_DIR"]}, "primaryEnv": "CLINSTAGRAM_SECRETS_FILE", "emoji": "📸", "homepage": "https://github.com/199-biotechnologies/clinstagram", "install": [{"pip": "clinstagram"}]}}
+---
+
+# clinstagram
+
+Hybrid Instagram CLI for AI agents. Routes between Meta Graph API and instagrapi private API based on compliance policy.
+
+## Install
+
+```bash
+pip install clinstagram
+```
+
+## Critical: Global Flags Before Subcommand
+
+```bash
+clinstagram --json --account main dm inbox     # CORRECT
+clinstagram dm inbox --json                    # WRONG — Typer limitation
+```
+
+Global flags: `--json`, `--account NAME`, `--backend auto|graph_ig|graph_fb|private`, `--proxy URL`, `--dry-run`, `--enable-growth-actions`
+
+## Quick Start
+
+```bash
+# Check status
+clinstagram --json auth status
+
+# Set compliance mode
+clinstagram config mode official-only    # Graph API only, zero risk
+clinstagram config mode hybrid-safe      # Graph primary, private read-only (default)
+clinstagram config mode private-enabled  # Full access, user accepts risk
+
+# Connect backends
+clinstagram auth connect-ig   # Instagram Login (posting, comments, analytics)
+clinstagram auth connect-fb   # Facebook Login (adds DMs, stories, webhooks)
+clinstagram auth login         # Private API (username/password/2FA via instagrapi)
+```
+
+## Commands
+
+| Group | Commands | Notes |
+|-------|----------|-------|
+| `auth` | `status`, `login`, `connect-ig`, `connect-fb`, `probe`, `logout` | Start with `auth status --json` |
+| `post` | `photo`, `video`, `reel`, `carousel` | Accepts local paths or URLs |
+| `dm` | `inbox`, `thread ID`, `send @user "text"`, `send-media`, `search` | Cold DMs = private API only |
+| `story` | `list [@user]`, `post-photo`, `post-video`, `viewers ID` | |
+| `comments` | `list MEDIA_ID`, `add`, `reply`, `delete` | add/reply need `--enable-growth-actions` |
+| `analytics` | `profile`, `post ID\|latest`, `hashtag TAG` | |
+| `followers` | `list`, `following`, `follow @user`, `unfollow @user` | follow/unfollow need `--enable-growth-actions` |
+| `user` | `info @user`, `search QUERY`, `posts @user` | |
+| `hashtag` | `top TAG`, `recent TAG` | |
+| `like` | `post MEDIA_ID`, `undo MEDIA_ID` | Needs `--enable-growth-actions` |
+| `config` | `show`, `mode MODE`, `set KEY VAL` | Modes: `official-only`, `hybrid-safe`, `private-enabled` |
+
+## JSON Output
+
+Success:
+```json
+{"exit_code": 0, "data": {}, "backend_used": "graph_fb"}
+```
+
+Error:
+```json
+{"exit_code": 2, "error": "session_expired", "remediation": "Run: clinstagram auth login", "retry_after": null}
+```
+
+## Exit Codes
+
+| Code | Meaning | Action |
+|------|---------|--------|
+| 0 | Success | Parse `data` |
+| 1 | Bad arguments | Fix syntax |
+| 2 | Auth error | Run `remediation` command |
+| 3 | Rate limited | Wait `retry_after` seconds |
+| 4 | API error | Retry |
+| 5 | Challenge required | Check `challenge_type`, prompt user |
+| 6 | Policy blocked | Change compliance mode |
+| 7 | Capability unavailable | Connect another backend |
+
+## Agent Workflow
+
+```bash
+# 1. Check what's available
+clinstagram --json auth status
+
+# 2. Probe capabilities
+clinstagram --json auth probe
+
+# 3. Preview before acting
+clinstagram --dry-run --json post photo img.jpg --caption "test"
+
+# 4. Execute
+clinstagram --json dm inbox --unread --limit 20
+
+# 5. On error, read remediation field and execute it
+```
+
+## Growth Actions (Disabled by Default)
+
+Follow, unfollow, like, unlike, comment add/reply require `--enable-growth-actions`. This is a safety gate — confirm with user before enabling.
+
+## Backend Capability Matrix
+
+| Feature | graph_ig | graph_fb | private |
+|---------|:--------:|:--------:|:-------:|
+| Post | Y | Y | Y |
+| DM inbox | - | Y | Y |
+| Cold DM | - | - | Y |
+| Stories | - | Y | Y |
+| Comments | Y | Y | Y |
+| Analytics | Y | Y | Y |
+| Follow/Unfollow | - | - | Y |
+| Hashtag | Y | Y | Y |
+
+Preference order: `graph_ig` > `graph_fb` > `private`. Override with `--backend`.
+
+## Examples
+
+```bash
+# Check DMs
+clinstagram --json dm inbox --unread
+
+# Reply to a message
+clinstagram --json dm send @alice "Thanks!"
+
+# Post a photo
+clinstagram --json post photo /path/to/img.jpg --caption "Hello world"
+
+# Get analytics
+clinstagram --json analytics post latest
+
+# Search users
+clinstagram --json user search "coffee shops"
+
+# Browse hashtag
+clinstagram --json hashtag top photography --limit 10
+```
+
+## Config
+
+File: `~/.clinstagram/config.toml`. Override dir with `CLINSTAGRAM_CONFIG_DIR` env var.
+----------------------------------------------------------------------------------------------------
+END FILE: SKILL.md
+
+FILE: pyproject.toml
+----------------------------------------------------------------------------------------------------
+[project]
+name = "clinstagram"
+version = "0.2.0"
+description = "Hybrid Instagram CLI for OpenClaw — Graph API + Private API"
+requires-python = ">=3.10"
+dependencies = [
+    "typer[all]>=0.12.0",
+    "httpx>=0.27.0",
+    "instagrapi>=2.3.0",
+    "rich>=13.7.0",
+    "tomli>=2.0.1; python_version < '3.11'",
+    "tomli-w>=1.0.0",
+    "pydantic>=2.6.0",
+    "keyring>=25.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
+
+[project.scripts]
+clinstagram = "clinstagram.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/clinstagram"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+----------------------------------------------------------------------------------------------------
+END FILE: pyproject.toml
+
+FILE: src/clinstagram/__init__.py
+----------------------------------------------------------------------------------------------------
+__version__ = "0.2.0"
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/__init__.py
+
+FILE: src/clinstagram/auth/__init__.py
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/auth/__init__.py
+
+FILE: src/clinstagram/auth/keychain.py
+----------------------------------------------------------------------------------------------------
+from __future__ import annotations
+
+from typing import Optional
+
+SERVICE_PREFIX = "clinstagram"
+
+BACKEND_TOKEN_MAP = {
+    "graph_ig": "graph_ig_token",
+    "graph_fb": "graph_fb_token",
+    "private": "private_session",
+}
+
+
+class SecretsStore:
+    """Abstraction over secret storage. Supports 'memory' (testing), 'keyring' (production)."""
+
+    def __init__(self, backend: str = "keyring"):
+        self.backend = backend
+        self._memory: dict[str, str] = {}
+
+    def _key(self, account: str, name: str) -> str:
+        return f"{SERVICE_PREFIX}/{account}/{name}"
+
+    def set(self, account: str, name: str, value: str) -> None:
+        key = self._key(account, name)
+        if self.backend == "memory":
+            self._memory[key] = value
+        elif self.backend == "keyring":
+            import keyring as kr
+
+            kr.set_password(SERVICE_PREFIX, key, value)
+        else:
+            raise ValueError(f"Unknown secrets backend: {self.backend}")
+
+    def get(self, account: str, name: str) -> Optional[str]:
+        key = self._key(account, name)
+        if self.backend == "memory":
+            return self._memory.get(key)
+        elif self.backend == "keyring":
+            import keyring as kr
+
+            return kr.get_password(SERVICE_PREFIX, key)
+        return None
+
+    def delete(self, account: str, name: str) -> None:
+        key = self._key(account, name)
+        if self.backend == "memory":
+            self._memory.pop(key, None)
+        elif self.backend == "keyring":
+            import keyring as kr
+
+            try:
+                kr.delete_password(SERVICE_PREFIX, key)
+            except kr.errors.PasswordDeleteError:
+                pass
+
+    def list_keys(self, account: str) -> list[str]:
+        prefix = self._key(account, "")
+        if self.backend == "memory":
+            return [k.removeprefix(prefix) for k in self._memory if k.startswith(prefix)]
+        return [
+            name
+            for name in ["graph_ig_token", "graph_fb_token", "private_session"]
+            if self.get(account, name) is not None
+        ]
+
+    def has_backend(self, account: str, backend_name: str) -> bool:
+        token_key = BACKEND_TOKEN_MAP.get(backend_name)
+        if not token_key:
+            return False
+        return self.get(account, token_key) is not None
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/auth/keychain.py
+
+FILE: src/clinstagram/auth/private_login.py
+----------------------------------------------------------------------------------------------------
+"""Resilient private API login via instagrapi.
+
+Handles session persistence, device UUID preservation, challenge resolution,
+TOTP 2FA, proxy enforcement, and delay configuration.
+"""
+from __future__ import annotations
+
+import json
+import logging
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Callable, Optional
+
+logger = logging.getLogger(__name__)
+
+# Default action delays (seconds) — reduces detection risk
+DEFAULT_DELAY_RANGE = [1, 3]
+
+# Modern device fingerprint — replaces instagrapi's flagged OnePlus 6T / Android 8
+DEFAULT_DEVICE_SETTINGS = {
+    "android_version": 33,
+    "android_release": "13.0.0",
+    "dpi": "420dpi",
+    "resolution": "1080x2400",
+    "manufacturer": "Google",
+    "device": "panther",
+    "model": "Pixel 7",
+    "cpu": "arm64-v8a",
+}
+
+# Locale → (country_code, country) for common Instagram locales
+_LOCALE_MAP = {
+    "en_US": (1, "US"),
+    "en_GB": (44, "GB"),
+    "en_AU": (61, "AU"),
+    "en_CA": (1, "CA"),
+    "pt_BR": (55, "BR"),
+    "es_ES": (34, "ES"),
+    "fr_FR": (33, "FR"),
+    "de_DE": (49, "DE"),
+    "it_IT": (39, "IT"),
+    "ja_JP": (81, "JP"),
+    "ko_KR": (82, "KR"),
+    "zh_CN": (86, "CN"),
+    "nl_NL": (31, "NL"),
+    "ru_RU": (7, "RU"),
+    "tr_TR": (90, "TR"),
+    "ar_SA": (966, "SA"),
+    "hi_IN": (91, "IN"),
+}
+
+
+def _detect_system_locale() -> str:
+    """Best-effort detection of system locale, fallback to en_US."""
+    import locale as _locale
+
+    try:
+        loc = _locale.getlocale()[0]
+        if loc and "_" in loc:
+            return loc
+    except Exception:
+        pass
+    return "en_US"
+
+
+def _locale_to_country(loc: str) -> tuple[int, str]:
+    """Map a locale string to (country_code, country_iso)."""
+    if loc in _LOCALE_MAP:
+        return _LOCALE_MAP[loc]
+    # Extract country from locale suffix (e.g. en_GB → GB)
+    parts = loc.split("_")
+    if len(parts) == 2:
+        country = parts[1].upper()
+        return (0, country)
+    return (0, "US")
+
+
+@dataclass
+class LoginResult:
+    success: bool
+    username: str = ""
+    session_json: str = ""
+    error: str = ""
+    remediation: str = ""
+    challenge_required: bool = False
+    relogin: bool = False
+
+
+@dataclass
+class LoginConfig:
+    username: str
+    password: str = ""
+    totp_seed: str = ""
+    proxy: str = ""
+    delay_range: list[int] = field(default_factory=lambda: list(DEFAULT_DELAY_RANGE))
+    challenge_handler: Optional[Callable[[str], str]] = None
+    locale: str = ""  # Empty = auto-detect from system
+    timezone: str = ""  # Empty = auto-detect from system
+    device_settings: dict[str, Any] = field(default_factory=dict)
+
+
+def _challenge_code_handler(username: str, choice: str) -> str:
+    """Default interactive challenge handler — prompts user for verification code."""
+    import typer
+
+    method = "SMS" if choice == "sms" else "email"
+    code = typer.prompt(f"Enter the {method} verification code sent to your device")
+    return code
+
+
+def _configure_client(client: Any, config: LoginConfig) -> None:
+    """Apply proxy, delays, device, locale, and TOTP to an instagrapi Client."""
+    if config.proxy:
+        client.set_proxy(config.proxy)
+
+    client.delay_range = config.delay_range
+
+    # Set device BEFORE login — uses set_device() so user agent is rebuilt
+    device = {**DEFAULT_DEVICE_SETTINGS, **(config.device_settings or {})}
+    client.set_device(device)
+
+    # Resolve locale — auto-detect if not provided
+    locale = config.locale or _detect_system_locale()
+    client.set_locale(locale)
+    country_code, country = _locale_to_country(locale)
+    client.set_country_code(country_code)
+    client.set_country(country)
+
+    # Resolve timezone — auto-detect if not provided
+    if config.timezone:
+        try:
+            client.set_timezone_offset(int(config.timezone))
+        except ValueError:
+            client.set_timezone_offset(0)
+    else:
+        import time
+        client.set_timezone_offset(-time.timezone)
+
+    # Rebuild user agent with new device/locale settings
+    client.set_user_agent()
+
+    if config.totp_seed:
+        client.totp_seed = config.totp_seed
+
+    # Set challenge handler
+    handler = config.challenge_handler or _challenge_code_handler
+    client.challenge_code_handler = handler
+
+
+def _validate_session(client: Any) -> bool:
+    """Check if the current session is still valid by hitting a lightweight endpoint."""
+    try:
+        client.account_info()
+        return True
+    except Exception:
+        return False
+
+
+def _extract_uuids(settings: dict) -> dict:
+    """Pull device UUIDs from settings for fingerprint preservation."""
+    uuids = {}
+    for key in ("uuid", "phone_id", "device_id", "advertising_id"):
+        if key in settings:
+            uuids[key] = settings[key]
+    # Also preserve device settings (model, android version, etc.)
+    if "device_settings" in settings:
+        uuids["device_settings"] = settings["device_settings"]
+    return uuids
+
+
+def login_private(config: LoginConfig, existing_session: str = "") -> LoginResult:
+    """
+    Perform a resilient private API login.
+
+    Flow:
+    1. If existing session exists, try to restore it
+    2. Validate with get_timeline_feed()
+    3. If validation fails, re-login with preserved device UUIDs
+    4. If fresh login, perform full login with challenge handling
+    5. Return session JSON for storage in keychain
+
+    Parameters
+    ----------
+    config : LoginConfig
+        Username, password, TOTP seed, proxy, etc.
+    existing_session : str
+        Previously stored session JSON from keychain (empty for first login).
+
+    Returns
+    -------
+    LoginResult
+        Contains success flag, session JSON for storage, and error details.
+    """
+    from instagrapi import Client
+    from instagrapi.exceptions import (
+        BadPassword,
+        ChallengeRequired,
+        LoginRequired,
+        PleaseWaitFewMinutes,
+        SentryBlock,
+        TwoFactorRequired,
+    )
+
+    cl = Client()
+    _configure_client(cl, config)
+
+    # ── Try restoring existing session ──────────────────────────────
+    if existing_session:
+        try:
+            session_data = json.loads(existing_session)
+            cl.set_settings(session_data)
+            
+            # If session exists, and we don't have a password in config,
+            # we should still be able to try validating it.
+            if config.password:
+                cl.login(config.username, config.password)
+
+            if _validate_session(cl):
+                logger.info("Session restored successfully for %s", config.username)
+                new_session = json.dumps(cl.get_settings())
+                return LoginResult(
+                    success=True,
+                    username=config.username,
+                    session_json=new_session,
+                )
+
+            # Session invalid — re-login with preserved device fingerprint
+            logger.info("Session expired for %s, re-authenticating with preserved UUIDs", config.username)
+            old_settings = cl.get_settings()
+            uuids = _extract_uuids(old_settings)
+
+            if not config.password:
+                return LoginResult(success=False, username=config.username, error="Session expired and no password provided for re-login")
+
+            cl = Client()
+            _configure_client(cl, config)
+            cl.set_settings({})
+            if uuids:
+                cl.set_uuids(uuids)
+
+            cl.login(config.username, config.password)
+
+            if _validate_session(cl):
+                new_session = json.dumps(cl.get_settings())
+                return LoginResult(
+                    success=True,
+                    username=config.username,
+                    session_json=new_session,
+                    relogin=True,
+                )
+
+            return LoginResult(success=False, username=config.username, error="Re-login succeeded but session validation failed")
+
+        except ChallengeRequired:
+            return LoginResult(
+                success=False,
+                username=config.username,
+                error="Instagram challenge required. Try again — the challenge handler will prompt you.",
+                challenge_required=True,
+            )
+        except TwoFactorRequired:
+            # Handle 2FA during session restore
+            if config.totp_seed:
+                try:
+                    from instagrapi.mixins.totp import TOTPMixin
+
+                    code = TOTPMixin.totp_generate_code(config.totp_seed)
+                    cl.two_factor_login(code)
+                    if _validate_session(cl):
+                        new_session = json.dumps(cl.get_settings())
+                        return LoginResult(success=True, username=config.username, session_json=new_session)
+                except Exception as exc:
+                    return LoginResult(success=False, username=config.username, error=f"2FA during session restore failed: {exc}")
+            return LoginResult(
+                success=False,
+                username=config.username,
+                error="2FA required but no TOTP seed provided",
+            )
+        except LoginRequired:
+            # Session completely dead — fall through to fresh login
+            logger.info("Session completely expired for %s, performing fresh login", config.username)
+            old_settings = cl.get_settings()
+            uuids = _extract_uuids(old_settings)
+            # Fall through to fresh login below, preserving UUIDs
+            cl = Client()
+            _configure_client(cl, config)
+            if uuids:
+                cl.set_uuids(uuids)
+        except Exception as exc:
+            logger.warning("Session restore failed for %s: %s", config.username, exc)
+            # Fall through to fresh login
+            cl = Client()
+            _configure_client(cl, config)
+
+    # ── Fresh login ─────────────────────────────────────────────────
+    if not config.password:
+        return LoginResult(success=False, username=config.username, error="Authentication required but no session or password provided.")
+
+    try:
+        cl.login(config.username, config.password)
+    except TwoFactorRequired:
+        if config.totp_seed:
+            try:
+                from instagrapi.mixins.totp import TOTPMixin
+
+                code = TOTPMixin.totp_generate_code(config.totp_seed)
+                cl.two_factor_login(code)
+            except Exception as exc:
+                return LoginResult(success=False, username=config.username, error=f"2FA login failed: {exc}")
+        else:
+            return LoginResult(
+                success=False,
+                username=config.username,
+                error="2FA required. Provide --totp-seed or set up TOTP in Instagram settings.",
+            )
+    except ChallengeRequired:
+        return LoginResult(
+            success=False,
+            username=config.username,
+            error="Instagram challenge required. Try again — the challenge handler will prompt you.",
+            challenge_required=True,
+        )
+    except BadPassword:
+        email_hint = (
+            " If you normally sign in with an email address, retry with that exact email."
+            if "@" not in config.username else ""
+        )
+        return LoginResult(
+            success=False,
+            username=config.username,
+            error="Instagram rejected the login. This can mean the password is wrong, "
+                  "the login identifier is wrong, or Instagram flagged this login fingerprint.",
+            remediation="Verify the exact login identifier (username or email) and password." + email_hint,
+        )
+    except SentryBlock:
+        return LoginResult(
+            success=False,
+            username=config.username,
+            error="Instagram blocked this login as suspicious.",
+            remediation="Wait a few minutes, then retry with a matching --locale or --proxy.",
+        )
+    except PleaseWaitFewMinutes:
+        return LoginResult(
+            success=False,
+            username=config.username,
+            error="Instagram asked you to wait before retrying.",
+            remediation="Wait a few minutes before retrying. Do not spam login attempts.",
+        )
+    except Exception as exc:
+        return LoginResult(success=False, username=config.username, error=f"Login failed: {exc}")
+
+    # ── Validate ────────────────────────────────────────────────────
+    if not _validate_session(cl):
+        return LoginResult(success=False, username=config.username, error="Login succeeded but session validation failed")
+
+    new_session = json.dumps(cl.get_settings())
+    return LoginResult(
+        success=True,
+        username=config.username,
+        session_json=new_session,
+    )
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/auth/private_login.py
+
+FILE: src/clinstagram/backends/__init__.py
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/backends/__init__.py
+
+FILE: src/clinstagram/backends/base.py
+----------------------------------------------------------------------------------------------------
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+
+
+class Backend(ABC):
+    """Abstract backend interface for Instagram API operations."""
+
+    @property
+    @abstractmethod
+    def name(self) -> str: ...
+
+    @abstractmethod
+    def post_photo(
+        self, media: str, caption: str = "", location: str = "", tags: list[str] | None = None
+    ) -> dict: ...
+
+    @abstractmethod
+    def post_video(
+        self, media: str, caption: str = "", thumbnail: str = "", location: str = ""
+    ) -> dict: ...
+
+    @abstractmethod
+    def post_reel(
+        self, media: str, caption: str = "", thumbnail: str = "", audio: str = ""
+    ) -> dict: ...
+
+    @abstractmethod
+    def post_carousel(
+        self, media_list: list[str], caption: str = ""
+    ) -> dict: ...
+
+    @abstractmethod
+    def dm_inbox(self, limit: int = 20, unread_only: bool = False) -> list[dict]: ...
+
+    @abstractmethod
+    def dm_thread(self, thread_id: str, limit: int = 20) -> list[dict]: ...
+
+    @abstractmethod
+    def dm_send(self, user: str, message: str) -> dict: ...
+
+    @abstractmethod
+    def dm_send_media(self, user: str, media: str) -> dict: ...
+
+    @abstractmethod
+    def story_list(self, user: str = "") -> list[dict]: ...
+
+    @abstractmethod
+    def story_post_photo(
+        self, media: str, mentions: list[str] | None = None, link: str = ""
+    ) -> dict: ...
+
+    @abstractmethod
+    def story_post_video(
+        self, media: str, mentions: list[str] | None = None, link: str = ""
+    ) -> dict: ...
+
+    @abstractmethod
+    def story_viewers(self, story_id: str) -> list[dict]: ...
+
+    @abstractmethod
+    def comments_list(self, media_id: str, limit: int = 50) -> list[dict]: ...
+
+    @abstractmethod
+    def comments_reply(self, comment_id: str, text: str) -> dict: ...
+
+    @abstractmethod
+    def comments_delete(self, comment_id: str) -> dict: ...
+
+    @abstractmethod
+    def analytics_profile(self) -> dict: ...
+
+    @abstractmethod
+    def analytics_post(self, media_id: str) -> dict: ...
+
+    @abstractmethod
+    def analytics_hashtag(self, tag: str) -> dict: ...
+
+    @abstractmethod
+    def followers_list(self, limit: int = 100) -> list[dict]: ...
+
+    @abstractmethod
+    def followers_following(self, limit: int = 100) -> list[dict]: ...
+
+    @abstractmethod
+    def follow(self, user: str) -> dict: ...
+
+    @abstractmethod
+    def unfollow(self, user: str) -> dict: ...
+
+    @abstractmethod
+    def user_info(self, username: str) -> dict: ...
+
+    @abstractmethod
+    def user_search(self, query: str) -> list[dict]: ...
+
+    @abstractmethod
+    def user_posts(self, username: str, limit: int = 20) -> list[dict]: ...
+
+    # Engagement
+    @abstractmethod
+    def like_post(self, media_id: str) -> dict: ...
+
+    @abstractmethod
+    def unlike_post(self, media_id: str) -> dict: ...
+
+    @abstractmethod
+    def comments_add(self, media_id: str, text: str) -> dict: ...
+
+    # Hashtag browsing
+    @abstractmethod
+    def hashtag_top(self, tag: str, limit: int = 20) -> list[dict]: ...
+
+    @abstractmethod
+    def hashtag_recent(self, tag: str, limit: int = 20) -> list[dict]: ...
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/backends/base.py
+
+FILE: src/clinstagram/backends/capabilities.py
+----------------------------------------------------------------------------------------------------
+from __future__ import annotations
+
+from enum import Enum
+
+
+class Feature(str, Enum):
+    # Posting
+    POST_PHOTO = "post_photo"
+    POST_VIDEO = "post_video"
+    POST_REEL = "post_reel"
+    POST_CAROUSEL = "post_carousel"
+    # DMs
+    DM_INBOX = "dm_inbox"
+    DM_PENDING = "dm_pending"
+    DM_THREAD = "dm_thread"
+    DM_REPLY = "dm_reply"
+    DM_COLD_SEND = "dm_cold_send"
+    DM_SEND_MEDIA = "dm_send_media"
+    DM_SEARCH = "dm_search"
+    DM_DELETE = "dm_delete"
+    DM_MUTE = "dm_mute"
+    DM_LISTEN = "dm_listen"
+    # Stories
+    STORY_LIST = "story_list"
+    STORY_POST = "story_post"
+    STORY_VIEW_OTHERS = "story_view_others"
+    STORY_VIEWERS = "story_viewers"
+    # Comments
+    COMMENTS_LIST = "comments_list"
+    COMMENTS_REPLY = "comments_reply"
+    COMMENTS_DELETE = "comments_delete"
+    # Analytics
+    ANALYTICS_PROFILE = "analytics_profile"
+    ANALYTICS_POST = "analytics_post"
+    ANALYTICS_HASHTAG = "analytics_hashtag"
+    # Followers
+    FOLLOWERS_LIST = "followers_list"
+    FOLLOWERS_FOLLOWING = "followers_following"
+    FOLLOW = "follow"
+    UNFOLLOW = "unfollow"
+    # User
+    USER_INFO = "user_info"
+    USER_SEARCH = "user_search"
+    USER_POSTS = "user_posts"
+    # Engagement
+    LIKE_POST = "like_post"
+    UNLIKE_POST = "unlike_post"
+    COMMENTS_ADD = "comments_add"
+    # Hashtag browsing
+    HASHTAG_TOP = "hashtag_top"
+    HASHTAG_RECENT = "hashtag_recent"
+
+
+CAPABILITY_MATRIX: dict[str, set[Feature]] = {
+    "graph_ig": {
+        Feature.POST_PHOTO, Feature.POST_VIDEO, Feature.POST_REEL, Feature.POST_CAROUSEL,
+        Feature.COMMENTS_LIST, Feature.COMMENTS_REPLY, Feature.COMMENTS_DELETE,
+        Feature.COMMENTS_ADD,
+        Feature.ANALYTICS_PROFILE, Feature.ANALYTICS_POST, Feature.ANALYTICS_HASHTAG,
+        Feature.HASHTAG_TOP, Feature.HASHTAG_RECENT,
+        Feature.USER_INFO, Feature.USER_SEARCH,
+    },
+    "graph_fb": {
+        Feature.POST_PHOTO, Feature.POST_VIDEO, Feature.POST_REEL, Feature.POST_CAROUSEL,
+        Feature.DM_INBOX, Feature.DM_THREAD, Feature.DM_REPLY, Feature.DM_SEND_MEDIA,
+        Feature.DM_LISTEN,
+        Feature.STORY_POST,
+        Feature.COMMENTS_LIST, Feature.COMMENTS_REPLY, Feature.COMMENTS_DELETE,
+        Feature.COMMENTS_ADD,
+        Feature.ANALYTICS_PROFILE, Feature.ANALYTICS_POST, Feature.ANALYTICS_HASHTAG,
+        Feature.HASHTAG_TOP, Feature.HASHTAG_RECENT,
+        Feature.USER_INFO, Feature.USER_SEARCH,
+    },
+    "private": set(Feature),
+}
+
+READ_ONLY_FEATURES: set[Feature] = {
+    Feature.DM_INBOX, Feature.DM_PENDING, Feature.DM_THREAD, Feature.DM_SEARCH,
+    Feature.DM_LISTEN,
+    Feature.STORY_LIST, Feature.STORY_VIEW_OTHERS, Feature.STORY_VIEWERS,
+    Feature.COMMENTS_LIST,
+    Feature.ANALYTICS_PROFILE, Feature.ANALYTICS_POST, Feature.ANALYTICS_HASHTAG,
+    Feature.FOLLOWERS_LIST, Feature.FOLLOWERS_FOLLOWING,
+    Feature.USER_INFO, Feature.USER_SEARCH, Feature.USER_POSTS,
+    Feature.HASHTAG_TOP, Feature.HASHTAG_RECENT,
+}
+
+GROWTH_ACTIONS: set[Feature] = {
+    Feature.FOLLOW, Feature.UNFOLLOW,
+    Feature.LIKE_POST, Feature.UNLIKE_POST, Feature.COMMENTS_ADD
+}
+
+
+def can_backend_do(backend: str, feature: Feature) -> bool:
+    caps = CAPABILITY_MATRIX.get(backend, set())
+    return feature in caps
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/backends/capabilities.py
+
+FILE: src/clinstagram/backends/graph.py
+----------------------------------------------------------------------------------------------------
+from __future__ import annotations
+
+import json as _json
+from typing import Any
+
+import httpx
+
+from clinstagram.backends.base import Backend
+
+
+class GraphAPIError(Exception):
+    """Raised when the Instagram/Facebook Graph API returns an error."""
+
+    def __init__(self, status_code: int, error_type: str, message: str, code: int | None = None):
+        self.status_code = status_code
+        self.error_type = error_type
+        self.code = code
+        super().__init__(message)
+
+
+def _extract_error(response: httpx.Response) -> GraphAPIError:
+    """Parse a Graph API error response into a structured exception."""
+    try:
+        body = response.json()
+        err = body.get("error", {})
+        return GraphAPIError(
+            status_code=response.status_code,
+            error_type=err.get("type", "Unknown"),
+            message=err.get("message", response.text),
+            code=err.get("code"),
+        )
+    except Exception:
+        return GraphAPIError(
+            status_code=response.status_code,
+            error_type="Unknown",
+            message=response.text,
+        )
+
+
+def _check(response: httpx.Response) -> dict | list:
+    """Raise on non-2xx, otherwise return parsed JSON."""
+    if response.status_code >= 400:
+        raise _extract_error(response)
+    return response.json()
+
+
+class GraphBackend(Backend):
+    """Instagram Graph API / Facebook Graph API backend."""
+
+    BASE_URLS = {
+        "ig": "https://graph.instagram.com/v21.0",
+        "fb": "https://graph.facebook.com/v21.0",
+    }
+
+    def __init__(self, token: str, login_type: str, client: httpx.Client):
+        if login_type not in self.BASE_URLS:
+            raise ValueError(f"login_type must be 'ig' or 'fb', got '{login_type}'")
+        self._token = token
+        self._login_type = login_type
+        self._client = client
+        self._base = self.BASE_URLS[login_type]
+        self._me_id_cache: str | None = None
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    @property
+    def name(self) -> str:
+        return f"graph_{self._login_type}"
+
+    def _url(self, path: str) -> str:
+        return f"{self._base}/{path.lstrip('/')}"
+
+    def _params(self, extra: dict[str, Any] | None = None) -> dict[str, Any]:
+        p: dict[str, Any] = {"access_token": self._token}
+        if extra:
+            p.update(extra)
+        return p
+
+    def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
+        return _check(self._client.get(self._url(path), params=self._params(params)))
+
+    def _post(self, path: str, data: dict[str, Any] | None = None) -> Any:
+        return _check(self._client.post(self._url(path), data=self._params(data)))
+
+    def _delete(self, path: str) -> Any:
+        return _check(self._client.delete(self._url(path), params=self._params()))
+
+    def _require_fb(self, feature: str) -> None:
+        if self._login_type != "fb":
+            raise NotImplementedError(
+                f"{feature} requires Facebook login (login_type='fb'). "
+                "Re-authenticate with a Facebook-linked Instagram account."
+            )
+
+    def _me_id(self) -> str:
+        if self._me_id_cache is None:
+            data = self._get("me", {"fields": "id"})
+            self._me_id_cache = data["id"]
+        return self._me_id_cache
+
+    # ------------------------------------------------------------------
+    # Posting
+    # ------------------------------------------------------------------
+
+    def post_photo(
+        self, media: str, caption: str = "", location: str = "", tags: list[str] | None = None
+    ) -> dict:
+        me = self._me_id()
+        payload: dict[str, Any] = {"image_url": media}
+        if caption:
+            payload["caption"] = caption
+        if location:
+            payload["location_id"] = location
+        if tags:
+            payload["user_tags"] = ",".join(tags)
+
+        # Step 1: create media container
+        container = self._post(f"{me}/media", payload)
+        container_id = container["id"]
+
+        # Step 2: publish
+        result = self._post(f"{me}/media_publish", {"creation_id": container_id})
+        return {"id": result["id"], "status": "published"}
+
+    def post_video(
+        self, media: str, caption: str = "", thumbnail: str = "", location: str = ""
+    ) -> dict:
+        me = self._me_id()
+        payload: dict[str, Any] = {"video_url": media, "media_type": "VIDEO"}
+        if caption:
+            payload["caption"] = caption
+        if thumbnail:
+            payload["thumb_offset"] = thumbnail
+        if location:
+            payload["location_id"] = location
+
+        container = self._post(f"{me}/media", payload)
+        container_id = container["id"]
+        result = self._post(f"{me}/media_publish", {"creation_id": container_id})
+        return {"id": result["id"], "status": "published"}
+
+    def post_reel(
+        self, media: str, caption: str = "", thumbnail: str = "", audio: str = ""
+    ) -> dict:
+        me = self._me_id()
+        payload: dict[str, Any] = {"video_url": media, "media_type": "REELS"}
+        if caption:
+            payload["caption"] = caption
+        if thumbnail:
+            payload["thumb_offset"] = thumbnail
+        if audio:
+            payload["audio_name"] = audio
+
+        container = self._post(f"{me}/media", payload)
+        container_id = container["id"]
+        result = self._post(f"{me}/media_publish", {"creation_id": container_id})
+        return {"id": result["id"], "status": "published"}
+
+    def post_carousel(self, media_list: list[str], caption: str = "") -> dict:
+        me = self._me_id()
+        # Create a container for each item
+        children_ids = []
+        for url in media_list:
+            is_video = any(url.lower().endswith(ext) for ext in (".mp4", ".mov", ".avi"))
+            payload: dict[str, Any] = {
+                "is_carousel_item": "true",
+                "video_url" if is_video else "image_url": url,
+            }
+            if is_video:
+                payload["media_type"] = "VIDEO"
+            child = self._post(f"{me}/media", payload)
+            children_ids.append(child["id"])
+
+        # Create the carousel container
+        carousel_payload: dict[str, Any] = {
+            "media_type": "CAROUSEL",
+            "children": ",".join(children_ids),
+        }
+        if caption:
+            carousel_payload["caption"] = caption
+        container = self._post(f"{me}/media", carousel_payload)
+        result = self._post(f"{me}/media_publish", {"creation_id": container["id"]})
+        return {"id": result["id"], "status": "published"}
+
+    # ------------------------------------------------------------------
+    # DMs (Facebook login only)
+    # ------------------------------------------------------------------
+
+    def dm_inbox(self, limit: int = 20, unread_only: bool = False) -> list[dict]:
+        self._require_fb("DM inbox")
+        me = self._me_id()
+        params: dict[str, Any] = {
+            "fields": "id,participants,messages{id,message,from,created_time}",
+            "limit": str(limit),
+        }
+        data = self._get(f"{me}/conversations", params)
+        threads = data.get("data", [])
+        if unread_only:
+            # Graph API doesn't natively filter unread; filter client-side would need
+            # additional logic. Return all for now.
+            pass
+        return [
+            {
+                "thread_id": t["id"],
+                "participants": t.get("participants", {}).get("data", []),
+                "messages": t.get("messages", {}).get("data", []),
+            }
+            for t in threads
+        ]
+
+    def dm_thread(self, thread_id: str, limit: int = 20) -> list[dict]:
+        self._require_fb("DM thread")
+        params = {
+            "fields": "id,message,from,created_time",
+            "limit": str(limit),
+        }
+        data = self._get(f"{thread_id}/messages", params)
+        return data.get("data", [])
+
+    def dm_send(self, user: str, message: str) -> dict:
+        self._require_fb("DM send")
+        me = self._me_id()
+        payload = {
+            "recipient": _json.dumps({"id": user}),
+            "message": _json.dumps({"text": message}),
+        }
+        result = self._post(f"{me}/messages", payload)
+        return {"message_id": result.get("message_id", result.get("id")), "status": "sent"}
+
+    def dm_send_media(self, user: str, media: str) -> dict:
+        self._require_fb("DM send media")
+        me = self._me_id()
+        payload = {
+            "recipient": _json.dumps({"id": user}),
+            "message": _json.dumps({"attachment": {"type": "image", "payload": {"url": media}}}),
+        }
+        result = self._post(f"{me}/messages", payload)
+        return {"message_id": result.get("message_id", result.get("id")), "status": "sent"}
+
+    # ------------------------------------------------------------------
+    # Stories
+    # ------------------------------------------------------------------
+
+    def story_list(self, user: str = "") -> list[dict]:
+        target = user or self._me_id()
+        params = {"fields": "id,media_type,media_url,timestamp"}
+        data = self._get(f"{target}/stories", params)
+        return data.get("data", [])
+
+    def story_post_photo(
+        self, media: str, mentions: list[str] | None = None, link: str = ""
+    ) -> dict:
+        self._require_fb("Story photo post")
+        me = self._me_id()
+        payload: dict[str, Any] = {"image_url": media, "media_type": "STORIES"}
+        if link:
+            payload["link"] = link
+
+        container = self._post(f"{me}/media", payload)
+        container_id = container["id"]
+        result = self._post(f"{me}/media_publish", {"creation_id": container_id})
+        return {"id": result["id"], "status": "published"}
+
+    def story_post_video(
+        self, media: str, mentions: list[str] | None = None, link: str = ""
+    ) -> dict:
+        self._require_fb("Story video post")
+        me = self._me_id()
+        payload: dict[str, Any] = {"video_url": media, "media_type": "STORIES"}
+        if link:
+            payload["link"] = link
+
+        container = self._post(f"{me}/media", payload)
+        container_id = container["id"]
+        result = self._post(f"{me}/media_publish", {"creation_id": container_id})
+        return {"id": result["id"], "status": "published"}
+
+    def story_viewers(self, story_id: str) -> list[dict]:
+        params = {"fields": "id,username"}
+        data = self._get(f"{story_id}/insights", params)
+        return data.get("data", [])
+
+    # ------------------------------------------------------------------
+    # Comments
+    # ------------------------------------------------------------------
+
+    def comments_list(self, media_id: str, limit: int = 50) -> list[dict]:
+        params = {
+            "fields": "id,text,from,timestamp",
+            "limit": str(limit),
+        }
+        data = self._get(f"{media_id}/comments", params)
+        return data.get("data", [])
+
+    def comments_reply(self, comment_id: str, text: str) -> dict:
+        result = self._post(f"{comment_id}/replies", {"message": text})
+        return {"id": result["id"], "status": "replied"}
+
+    def comments_delete(self, comment_id: str) -> dict:
+        self._delete(comment_id)
+        return {"id": comment_id, "status": "deleted"}
+
+    # ------------------------------------------------------------------
+    # Analytics
+    # ------------------------------------------------------------------
+
+    def analytics_profile(self) -> dict:
+        me = self._me_id()
+        params = {
+            "fields": "followers_count,follows_count,media_count,name,username",
+        }
+        return self._get(me, params)
+
+    def analytics_post(self, media_id: str) -> dict:
+        params = {
+            "fields": "id,like_count,comments_count,timestamp,media_type,permalink",
+        }
+        return self._get(media_id, params)
+
+    def analytics_hashtag(self, tag: str) -> dict:
+        me = self._me_id()
+        # ig_hashtag_search requires user_id on the search request itself
+        search = self._get("ig_hashtag_search", {"q": tag, "user_id": me})
+        results = search.get("data", [])
+        if not results:
+            return {"tag": tag, "error": "Hashtag not found"}
+        hashtag_id = results[0]["id"]
+        params = {"fields": "id,name,media_count", "user_id": me}
+        return self._get(hashtag_id, params)
+
+    # ------------------------------------------------------------------
+    # Followers
+    # ------------------------------------------------------------------
+
+    def followers_list(self, limit: int = 100) -> list[dict]:
+        # Graph API does not expose a full followers list.
+        # Only business discovery can show follower counts.
+        raise NotImplementedError(
+            "The Graph API does not provide a full followers list. "
+            "Use --backend private for this feature."
+        )
+
+    def followers_following(self, limit: int = 100) -> list[dict]:
+        raise NotImplementedError(
+            "The Graph API does not provide a following list. "
+            "Use --backend private for this feature."
+        )
+
+    def follow(self, user: str) -> dict:
+        raise NotImplementedError(
+            "The Graph API does not support follow actions. "
+            "Use --backend private for this feature."
+        )
+
+    def unfollow(self, user: str) -> dict:
+        raise NotImplementedError(
+            "The Graph API does not support unfollow actions. "
+            "Use --backend private for this feature."
+        )
+
+    # ------------------------------------------------------------------
+    # User
+    # ------------------------------------------------------------------
+
+    def user_info(self, username: str) -> dict:
+        me = self._me_id()
+        params = {
+            "fields": f"business_discovery.fields(id,username,name,biography,followers_count,follows_count,media_count,profile_picture_url).username({username})",
+        }
+        data = self._get(me, params)
+        return data.get("business_discovery", {})
+
+    def user_search(self, query: str) -> list[dict]:
+        # Graph API has no direct user search endpoint.
+        # Use business_discovery as a single-user lookup fallback.
+        try:
+            info = self.user_info(query)
+            return [info] if info else []
+        except GraphAPIError:
+            return []
+
+    def user_posts(self, username: str, limit: int = 20) -> list[dict]:
+        me = self._me_id()
+        params = {
+            "fields": f"business_discovery.fields(media.limit({limit}){{id,caption,media_type,media_url,timestamp,like_count,comments_count}}).username({username})",
+        }
+        data = self._get(me, params)
+        business = data.get("business_discovery", {})
+        media = business.get("media", {})
+        return media.get("data", [])
+
+    # ------------------------------------------------------------------
+    # Engagement
+    # ------------------------------------------------------------------
+
+    def like_post(self, media_id: str) -> dict:
+        raise NotImplementedError(
+            "The Graph API does not support liking posts. "
+            "Use --backend private for this feature."
+        )
+
+    def unlike_post(self, media_id: str) -> dict:
+        raise NotImplementedError(
+            "The Graph API does not support unliking posts. "
+            "Use --backend private for this feature."
+        )
+
+    def comments_add(self, media_id: str, text: str) -> dict:
+        result = self._post(f"{media_id}/comments", {"message": text})
+        return {"id": result["id"], "status": "commented"}
+
+    # ------------------------------------------------------------------
+    # Hashtag browsing
+    # ------------------------------------------------------------------
+
+    def _hashtag_id(self, tag: str) -> str | None:
+        """Look up a hashtag ID (requires user_id per Meta docs)."""
+        me = self._me_id()
+        search = self._get("ig_hashtag_search", {"q": tag, "user_id": me})
+        results = search.get("data", [])
+        return results[0]["id"] if results else None
+
+    def hashtag_top(self, tag: str, limit: int = 20) -> list[dict]:
+        hashtag_id = self._hashtag_id(tag)
+        if not hashtag_id:
+            return []
+        me = self._me_id()
+        params = {
+            "fields": "id,caption,media_type,media_url,timestamp,like_count,comments_count",
+            "user_id": me,
+            "limit": str(limit),
+        }
+        data = self._get(f"{hashtag_id}/top_media", params)
+        return data.get("data", [])
+
+    def hashtag_recent(self, tag: str, limit: int = 20) -> list[dict]:
+        hashtag_id = self._hashtag_id(tag)
+        if not hashtag_id:
+            return []
+        me = self._me_id()
+        params = {
+            "fields": "id,caption,media_type,media_url,timestamp,like_count,comments_count",
+            "user_id": me,
+            "limit": str(limit),
+        }
+        data = self._get(f"{hashtag_id}/recent_media", params)
+        return data.get("data", [])
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/backends/graph.py
+
+FILE: src/clinstagram/backends/private.py
+----------------------------------------------------------------------------------------------------
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+from clinstagram.backends.base import Backend
+
+
+class PrivateAPIError(Exception):
+    """Raised when an instagrapi operation fails."""
+
+    pass
+
+
+def _user_to_dict(user: Any) -> dict:
+    """Convert an instagrapi User model to a plain dict."""
+    return {
+        "pk": str(user.pk),
+        "username": user.username,
+        "full_name": user.full_name,
+        "profile_pic_url": str(user.profile_pic_url) if user.profile_pic_url else None,
+        "is_private": user.is_private,
+    }
+
+
+def _media_to_dict(media: Any) -> dict:
+    """Convert an instagrapi Media model to a plain dict."""
+    return {
+        "id": str(media.pk),
+        "code": media.code,
+        "media_type": media.media_type,
+        "caption": media.caption_text if hasattr(media, "caption_text") else "",
+        "timestamp": str(media.taken_at) if media.taken_at else None,
+        "like_count": getattr(media, "like_count", 0),
+        "comment_count": getattr(media, "comment_count", 0),
+    }
+
+
+def _comment_to_dict(comment: Any) -> dict:
+    """Convert an instagrapi Comment model to a plain dict."""
+    return {
+        "id": str(comment.pk),
+        "text": comment.text,
+        "user": _user_to_dict(comment.user) if comment.user else None,
+        "timestamp": str(comment.created_at_utc) if comment.created_at_utc else None,
+    }
+
+
+def _story_to_dict(story: Any) -> dict:
+    """Convert an instagrapi Story model to a plain dict."""
+    return {
+        "id": str(story.pk),
+        "media_type": story.media_type,
+        "video_url": str(story.video_url) if story.video_url else None,
+        "thumbnail_url": str(story.thumbnail_url) if story.thumbnail_url else None,
+        "timestamp": str(story.taken_at) if story.taken_at else None,
+    }
+
+
+def _thread_to_dict(thread: Any) -> dict:
+    """Convert an instagrapi DirectThread model to a plain dict."""
+    return {
+        "thread_id": str(thread.id),
+        "thread_title": thread.thread_title,
+        "users": [_user_to_dict(u) for u in (thread.users or [])],
+        "last_activity_at": str(thread.last_activity_at) if thread.last_activity_at else None,
+    }
+
+
+def _message_to_dict(msg: Any) -> dict:
+    """Convert an instagrapi DirectMessage model to a plain dict."""
+    return {
+        "id": str(msg.id),
+        "text": msg.text or "",
+        "user_id": str(msg.user_id) if msg.user_id else None,
+        "timestamp": str(msg.timestamp) if msg.timestamp else None,
+        "item_type": getattr(msg, "item_type", None),
+    }
+
+
+def _wrap_error(fn_name: str, exc: Exception) -> PrivateAPIError:
+    """Wrap an instagrapi exception with context."""
+    return PrivateAPIError(f"{fn_name} failed: {exc}")
+
+
+class PrivateBackend(Backend):
+    """Instagram Private API backend via instagrapi."""
+
+    def __init__(self, client: Any):
+        """
+        Parameters
+        ----------
+        client : instagrapi.Client
+            An already-authenticated instagrapi Client instance.
+        """
+        self._cl = client
+
+    @property
+    def name(self) -> str:
+        return "private"
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _user_id_from_username(self, username: str) -> str:
+        try:
+            info = self._cl.user_info_by_username(username)
+            return str(info.pk)
+        except Exception as exc:
+            raise _wrap_error("user_id_from_username", exc)
+
+    # ------------------------------------------------------------------
+    # Posting
+    # ------------------------------------------------------------------
+
+    def post_photo(
+        self, media: str, caption: str = "", location: str = "", tags: list[str] | None = None
+    ) -> dict:
+        try:
+            kwargs: dict[str, Any] = {"path": Path(media), "caption": caption}
+            result = self._cl.photo_upload(**kwargs)
+            return _media_to_dict(result)
+        except Exception as exc:
+            raise _wrap_error("post_photo", exc)
+
+    def post_video(
+        self, media: str, caption: str = "", thumbnail: str = "", location: str = ""
+    ) -> dict:
+        try:
+            kwargs: dict[str, Any] = {"path": Path(media), "caption": caption}
+            if thumbnail:
+                kwargs["thumbnail"] = Path(thumbnail)
+            result = self._cl.video_upload(**kwargs)
+            return _media_to_dict(result)
+        except Exception as exc:
+            raise _wrap_error("post_video", exc)
+
+    def post_reel(
+        self, media: str, caption: str = "", thumbnail: str = "", audio: str = ""
+    ) -> dict:
+        try:
+            kwargs: dict[str, Any] = {"path": Path(media), "caption": caption}
+            if thumbnail:
+                kwargs["thumbnail"] = Path(thumbnail)
+            result = self._cl.clip_upload(**kwargs)
+            return _media_to_dict(result)
+        except Exception as exc:
+            raise _wrap_error("post_reel", exc)
+
+    def post_carousel(self, media_list: list[str], caption: str = "") -> dict:
+        try:
+            paths = [Path(m) for m in media_list]
+            result = self._cl.album_upload(paths, caption=caption)
+            return _media_to_dict(result)
+        except Exception as exc:
+            raise _wrap_error("post_carousel", exc)
+
+    # ------------------------------------------------------------------
+    # DMs
+    # ------------------------------------------------------------------
+
+    def dm_inbox(self, limit: int = 20, unread_only: bool = False) -> list[dict]:
+        try:
+            threads = self._cl.direct_threads(amount=limit)
+            results = [_thread_to_dict(t) for t in threads]
+            return results
+        except Exception as exc:
+            raise _wrap_error("dm_inbox", exc)
+
+    def dm_thread(self, thread_id: str, limit: int = 20) -> list[dict]:
+        try:
+            messages = self._cl.direct_messages(thread_id, amount=limit)
+            return [_message_to_dict(m) for m in messages]
+        except Exception as exc:
+            raise _wrap_error("dm_thread", exc)
+
+    def dm_send(self, user: str, message: str) -> dict:
+        try:
+            user_ids = [int(self._user_id_from_username(user))]
+            result = self._cl.direct_send(message, user_ids=user_ids)
+            return {"message_id": str(result.id) if result else None, "status": "sent"}
+        except PrivateAPIError:
+            raise
+        except Exception as exc:
+            raise _wrap_error("dm_send", exc)
+
+    def dm_send_media(self, user: str, media: str) -> dict:
+        try:
+            user_ids = [int(self._user_id_from_username(user))]
+            path = Path(media)
+            suffix = path.suffix.lower()
+            if suffix in (".mp4", ".mov", ".avi"):
+                result = self._cl.direct_send_video(path, user_ids=user_ids)
+            else:
+                result = self._cl.direct_send_photo(path, user_ids=user_ids)
+            return {"message_id": str(result.id) if result else None, "status": "sent"}
+        except PrivateAPIError:
+            raise
+        except Exception as exc:
+            raise _wrap_error("dm_send_media", exc)
+
+    # ------------------------------------------------------------------
+    # Stories
+    # ------------------------------------------------------------------
+
+    def story_list(self, user: str = "") -> list[dict]:
+        try:
+            if user:
+                user_id = int(self._user_id_from_username(user))
+                stories = self._cl.user_stories(user_id)
+            else:
+                user_id = self._cl.user_id
+                stories = self._cl.user_stories(user_id)
+            return [_story_to_dict(s) for s in stories]
+        except PrivateAPIError:
+            raise
+        except Exception as exc:
+            raise _wrap_error("story_list", exc)
+
+    def story_post_photo(
+        self, media: str, mentions: list[str] | None = None, link: str = ""
+    ) -> dict:
+        try:
+            kwargs: dict[str, Any] = {"path": Path(media)}
+            if mentions:
+                from instagrapi.types import StoryMention
+
+                mention_objects = []
+                for m in mentions:
+                    uid = int(self._user_id_from_username(m))
+                    mention_objects.append(
+                        StoryMention(user=self._cl.user_info(uid), x=0.5, y=0.5, width=0.3, height=0.05)
+                    )
+                kwargs["mentions"] = mention_objects
+            if link:
+                from instagrapi.types import StoryLink
+
+                kwargs["links"] = [StoryLink(webUri=link)]
+            result = self._cl.photo_upload_to_story(**kwargs)
+            return _story_to_dict(result)
+        except PrivateAPIError:
+            raise
+        except Exception as exc:
+            raise _wrap_error("story_post_photo", exc)
+
+    def story_post_video(
+        self, media: str, mentions: list[str] | None = None, link: str = ""
+    ) -> dict:
+        try:
+            kwargs: dict[str, Any] = {"path": Path(media)}
+            if mentions:
+                from instagrapi.types import StoryMention
+
+                mention_objects = []
+                for m in mentions:
+                    uid = int(self._user_id_from_username(m))
+                    mention_objects.append(
+                        StoryMention(user=self._cl.user_info(uid), x=0.5, y=0.5, width=0.3, height=0.05)
+                    )
+                kwargs["mentions"] = mention_objects
+            if link:
+                from instagrapi.types import StoryLink
+
+                kwargs["links"] = [StoryLink(webUri=link)]
+            result = self._cl.video_upload_to_story(**kwargs)
+            return _story_to_dict(result)
+        except PrivateAPIError:
+            raise
+        except Exception as exc:
+            raise _wrap_error("story_post_video", exc)
+
+    def story_viewers(self, story_id: str) -> list[dict]:
+        try:
+            viewers = self._cl.story_viewers(story_id)
+            return [_user_to_dict(v) for v in viewers]
+        except Exception as exc:
+            raise _wrap_error("story_viewers", exc)
+
+    # ------------------------------------------------------------------
+    # Comments
+    # ------------------------------------------------------------------
+
+    def comments_list(self, media_id: str, limit: int = 50) -> list[dict]:
+        try:
+            comments = self._cl.media_comments(media_id, amount=limit)
+            results = []
+            for c in comments:
+                d = _comment_to_dict(c)
+                # Composite ID for CLI use: media_id:comment_id
+                d["id"] = f"{media_id}:{d['id']}"
+                results.append(d)
+            return results
+        except Exception as exc:
+            raise _wrap_error("comments_list", exc)
+
+    def comments_reply(self, comment_id: str, text: str) -> dict:
+        try:
+            # Composite ID format: media_id:comment_id (from comments_list)
+            parts = comment_id.split(":", 1)
+            if len(parts) == 2:
+                media_id, cid = parts
+                result = self._cl.media_comment(media_id, text, replied_to_comment_id=int(cid))
+            else:
+                # Fallback: treat as media_id for top-level comment
+                result = self._cl.media_comment(comment_id, text)
+            return _comment_to_dict(result)
+        except Exception as exc:
+            raise _wrap_error("comments_reply", exc)
+
+    def comments_delete(self, comment_id: str) -> dict:
+        try:
+            parts = comment_id.split(":", 1)
+            if len(parts) == 2:
+                media_id, cid = parts
+                self._cl.comment_bulk_delete(media_id, [int(cid)])
+            else:
+                # Best-effort: treat as comment PK
+                self._cl.comment_bulk_delete(comment_id, [int(comment_id)])
+            return {"id": comment_id, "status": "deleted"}
+        except Exception as exc:
+            raise _wrap_error("comments_delete", exc)
+
+    # ------------------------------------------------------------------
+    # Analytics
+    # ------------------------------------------------------------------
+
+    def analytics_profile(self) -> dict:
+        try:
+            account = self._cl.account_info()
+            # Account object lacks follower/media counts — fetch via user_info
+            info = self._cl.user_info(int(account.pk))
+            return {
+                "username": info.username,
+                "full_name": info.full_name,
+                "followers_count": info.follower_count,
+                "following_count": info.following_count,
+                "media_count": info.media_count,
+                "biography": info.biography,
+            }
+        except Exception as exc:
+            raise _wrap_error("analytics_profile", exc)
+
+    def analytics_post(self, media_id: str) -> dict:
+        try:
+            info = self._cl.media_info(media_id)
+            return _media_to_dict(info)
+        except Exception as exc:
+            raise _wrap_error("analytics_post", exc)
+
+    def analytics_hashtag(self, tag: str) -> dict:
+        try:
+            info = self._cl.hashtag_info(tag)
+            return {
+                "name": info.name,
+                "media_count": info.media_count,
+            }
+        except Exception as exc:
+            raise _wrap_error("analytics_hashtag", exc)
+
+    # ------------------------------------------------------------------
+    # Followers
+    # ------------------------------------------------------------------
+
+    def followers_list(self, limit: int = 100) -> list[dict]:
+        try:
+            user_id = self._cl.user_id
+            followers = self._cl.user_followers(user_id, amount=limit)
+            return [_user_to_dict(u) for u in followers.values()]
+        except Exception as exc:
+            raise _wrap_error("followers_list", exc)
+
+    def followers_following(self, limit: int = 100) -> list[dict]:
+        try:
+            user_id = self._cl.user_id
+            following = self._cl.user_following(user_id, amount=limit)
+            return [_user_to_dict(u) for u in following.values()]
+        except Exception as exc:
+            raise _wrap_error("followers_following", exc)
+
+    def follow(self, user: str) -> dict:
+        try:
+            user_id = int(self._user_id_from_username(user))
+            result = self._cl.user_follow(user_id)
+            return {"username": user, "followed": result}
+        except PrivateAPIError:
+            raise
+        except Exception as exc:
+            raise _wrap_error("follow", exc)
+
+    def unfollow(self, user: str) -> dict:
+        try:
+            user_id = int(self._user_id_from_username(user))
+            result = self._cl.user_unfollow(user_id)
+            return {"username": user, "unfollowed": result}
+        except PrivateAPIError:
+            raise
+        except Exception as exc:
+            raise _wrap_error("unfollow", exc)
+
+    # ------------------------------------------------------------------
+    # User
+    # ------------------------------------------------------------------
+
+    def user_info(self, username: str) -> dict:
+        try:
+            info = self._cl.user_info_by_username(username)
+            return {
+                **_user_to_dict(info),
+                "biography": info.biography,
+                "followers_count": info.follower_count,
+                "following_count": info.following_count,
+                "media_count": info.media_count,
+                "is_verified": info.is_verified,
+            }
+        except Exception as exc:
+            raise _wrap_error("user_info", exc)
+
+    def user_search(self, query: str) -> list[dict]:
+        try:
+            users = self._cl.search_users(query)
+            return [_user_to_dict(u) for u in users]
+        except Exception as exc:
+            raise _wrap_error("user_search", exc)
+
+    def user_posts(self, username: str, limit: int = 20) -> list[dict]:
+        try:
+            user_id = self._user_id_from_username(username)
+            medias = self._cl.user_medias(int(user_id), amount=limit)
+            return [_media_to_dict(m) for m in medias]
+        except Exception as exc:
+            raise _wrap_error("user_posts", exc)
+
+    # ------------------------------------------------------------------
+    # Engagement
+    # ------------------------------------------------------------------
+
+    def like_post(self, media_id: str) -> dict:
+        try:
+            self._cl.media_like(media_id)
+            return {"media_id": media_id, "status": "liked"}
+        except Exception as exc:
+            raise _wrap_error("like_post", exc)
+
+    def unlike_post(self, media_id: str) -> dict:
+        try:
+            self._cl.media_unlike(media_id)
+            return {"media_id": media_id, "status": "unliked"}
+        except Exception as exc:
+            raise _wrap_error("unlike_post", exc)
+
+    def comments_add(self, media_id: str, text: str) -> dict:
+        try:
+            result = self._cl.media_comment(media_id, text)
+            return _comment_to_dict(result)
+        except Exception as exc:
+            raise _wrap_error("comments_add", exc)
+
+    # ------------------------------------------------------------------
+    # Hashtag browsing
+    # ------------------------------------------------------------------
+
+    def hashtag_top(self, tag: str, limit: int = 20) -> list[dict]:
+        try:
+            medias = self._cl.hashtag_medias_top(tag, amount=limit)
+            return [_media_to_dict(m) for m in medias]
+        except Exception as exc:
+            raise _wrap_error("hashtag_top", exc)
+
+    def hashtag_recent(self, tag: str, limit: int = 20) -> list[dict]:
+        try:
+            medias = self._cl.hashtag_medias_recent(tag, amount=limit)
+            return [_media_to_dict(m) for m in medias]
+        except Exception as exc:
+            raise _wrap_error("hashtag_recent", exc)
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/backends/private.py
+
+FILE: src/clinstagram/backends/router.py
+----------------------------------------------------------------------------------------------------
+from __future__ import annotations
+
+from typing import Optional
+
+from clinstagram.auth.keychain import SecretsStore
+from clinstagram.backends.capabilities import (
+    GROWTH_ACTIONS,
+    READ_ONLY_FEATURES,
+    Feature,
+    can_backend_do,
+)
+from clinstagram.config import ComplianceMode
+
+BACKEND_PREFERENCE = ["graph_ig", "graph_fb", "private"]
+
+
+class Router:
+    def __init__(
+        self,
+        account: str,
+        compliance_mode: ComplianceMode,
+        secrets: SecretsStore,
+    ):
+        self.account = account
+        self.compliance_mode = compliance_mode
+        self.secrets = secrets
+
+    def _available_backends(self) -> list[str]:
+        return [b for b in BACKEND_PREFERENCE if self.secrets.has_backend(self.account, b)]
+
+    def _is_allowed_by_policy(self, backend: str, feature: Feature) -> bool:
+        if self.compliance_mode == ComplianceMode.OFFICIAL_ONLY:
+            return backend != "private"
+
+        if self.compliance_mode == ComplianceMode.HYBRID_SAFE:
+            if backend == "private":
+                if feature in GROWTH_ACTIONS:
+                    return False
+                return feature in READ_ONLY_FEATURES
+            return True
+
+        return True
+
+    def route(self, feature: Feature) -> Optional[str]:
+        available = self._available_backends()
+        for backend in BACKEND_PREFERENCE:
+            if backend not in available:
+                continue
+            if not can_backend_do(backend, feature):
+                continue
+            if not self._is_allowed_by_policy(backend, feature):
+                continue
+            return backend
+        return None
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/backends/router.py
+
+FILE: src/clinstagram/cli.py
+----------------------------------------------------------------------------------------------------
+from __future__ import annotations
+
+import os
+import sys
+from pathlib import Path
+from typing import Optional
+
+import typer
+
+from clinstagram import __version__
+from clinstagram.config import BackendType, load_config
+
+app = typer.Typer(
+    name="clinstagram",
+    help="Hybrid Instagram CLI for OpenClaw — Graph API + Private API",
+    epilog="Global options (--json, --proxy, --account) must appear before the subcommand. Example: clinstagram --json auth status",
+    no_args_is_help=True,
+)
+
+
+def _version_callback(value: bool):
+    if value:
+        typer.echo(f"clinstagram {__version__}")
+        raise typer.Exit()
+
+
+def _resolve_config_dir() -> Optional[Path]:
+    env = os.environ.get("CLINSTAGRAM_CONFIG_DIR")
+    return Path(env) if env else None
+
+
+@app.callback()
+def main(
+    ctx: typer.Context,
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON (place before subcommand)"),
+    account: str = typer.Option("default", "--account", help="Account name"),
+    backend: BackendType = typer.Option(BackendType.AUTO, "--backend", help="Force backend"),
+    proxy: Optional[str] = typer.Option(None, "--proxy", help="Proxy URL for private API"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would happen"),
+    enable_growth: bool = typer.Option(
+        False, "--enable-growth-actions", help="Unlock follow/unfollow, like/unlike, and commenting"
+    ),
+    version: bool = typer.Option(
+        False, "--version", callback=_version_callback, is_eager=True
+    ),
+):
+    config_dir = _resolve_config_dir()
+    if not json_output and not sys.stdout.isatty():
+        json_output = True
+    ctx.ensure_object(dict)
+    ctx.obj["json"] = json_output
+    ctx.obj["account"] = account
+    ctx.obj["backend"] = backend
+    config = load_config(config_dir)
+    ctx.obj["proxy"] = proxy or config.proxy
+    ctx.obj["dry_run"] = dry_run
+    ctx.obj["enable_growth"] = enable_growth
+    ctx.obj["config_dir"] = config_dir
+    ctx.obj["config"] = config
+    # Use memory-backed secrets only in explicit test mode
+    if os.environ.get("CLINSTAGRAM_TEST_MODE") == "1":
+        from clinstagram.auth.keychain import SecretsStore
+
+        ctx.obj["secrets"] = SecretsStore(backend="memory")
+
+
+# Register command groups
+from clinstagram.commands.analytics import analytics_app  # noqa: E402
+from clinstagram.commands.auth import auth_app  # noqa: E402
+from clinstagram.commands.comments import comments_app  # noqa: E402
+from clinstagram.commands.config_cmd import config_app  # noqa: E402
+from clinstagram.commands.dm import dm_app  # noqa: E402
+from clinstagram.commands.followers import followers_app  # noqa: E402
+from clinstagram.commands.hashtag import hashtag_app  # noqa: E402
+from clinstagram.commands.like import like_app  # noqa: E402
+from clinstagram.commands.post import post_app  # noqa: E402
+from clinstagram.commands.story import story_app  # noqa: E402
+from clinstagram.commands.user import user_app  # noqa: E402
+
+app.add_typer(auth_app, name="auth")
+app.add_typer(config_app, name="config")
+app.add_typer(post_app, name="post")
+app.add_typer(dm_app, name="dm")
+app.add_typer(story_app, name="story")
+app.add_typer(comments_app, name="comments")
+app.add_typer(analytics_app, name="analytics")
+app.add_typer(followers_app, name="followers")
+app.add_typer(user_app, name="user")
+app.add_typer(like_app, name="like")
+app.add_typer(hashtag_app, name="hashtag")
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/cli.py
+
+FILE: src/clinstagram/commands/__init__.py
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/commands/__init__.py
+
+FILE: src/clinstagram/commands/_dispatch.py
+----------------------------------------------------------------------------------------------------
+"""Shared dispatch logic — routes a Feature to a backend, calls the action, outputs the result."""
+from __future__ import annotations
+
+import json
+import sys
+from typing import Any, Callable
+
+import typer
+from rich.console import Console
+
+def make_subgroup(help_text: str) -> typer.Typer:
+    """Create a sub-Typer with proper no-args help."""
+    sub = typer.Typer(help=help_text, no_args_is_help=True)
+    return sub
+
+from clinstagram.auth.keychain import SecretsStore
+from clinstagram.backends.base import Backend
+from clinstagram.backends.capabilities import Feature
+from clinstagram.backends.router import Router
+from clinstagram.config import ComplianceMode
+from clinstagram.media import cleanup_temp_files, resolve_media
+from clinstagram.models import CLIError, CLIResponse, ExitCode
+
+console = Console()
+
+
+def _get_secrets(ctx: typer.Context) -> SecretsStore:
+    if "secrets" in ctx.obj:
+        return ctx.obj["secrets"]
+    return SecretsStore(backend="keyring")
+
+
+def _get_router(ctx: typer.Context) -> Router:
+    config = ctx.obj["config"]
+    return Router(
+        account=ctx.obj["account"],
+        compliance_mode=config.compliance_mode,
+        secrets=_get_secrets(ctx),
+    )
+
+
+def _instantiate_backend(ctx: typer.Context, backend_name: str, feature: Feature) -> Backend:
+    """Create the appropriate Backend instance from stored credentials."""
+    import httpx
+
+    secrets = _get_secrets(ctx)
+    account = ctx.obj["account"]
+
+    if backend_name == "graph_ig":
+        from clinstagram.backends.graph import GraphBackend
+
+        token = secrets.get(account, "graph_ig_token")
+        return GraphBackend(token=token, login_type="ig", client=httpx.Client())
+
+    if backend_name == "graph_fb":
+        from clinstagram.backends.graph import GraphBackend
+
+        token = secrets.get(account, "graph_fb_token")
+        return GraphBackend(token=token, login_type="fb", client=httpx.Client())
+
+    if backend_name == "private":
+        from instagrapi import Client
+
+        from clinstagram.backends.private import PrivateBackend
+
+        session_json = secrets.get(account, "private_session")
+        if not session_json:
+            raise RuntimeError("No private session stored. Run: clinstagram auth login")
+        cl = Client()
+        session_data = json.loads(session_json)
+        cl.set_settings(session_data)
+        proxy = ctx.obj.get("proxy")
+        if proxy:
+            cl.set_proxy(proxy)
+            
+        from clinstagram.backends.capabilities import READ_ONLY_FEATURES
+        config = ctx.obj["config"]
+        rl = config.rate_limits
+        if feature in READ_ONLY_FEATURES:
+            cl.delay_range = [0, rl.request_delay_min]
+        else:
+            cl.delay_range = [rl.request_delay_min, rl.request_delay_max]
+            
+        return PrivateBackend(client=cl)
+
+    raise ValueError(f"Unknown backend: {backend_name}")
+
+
+def _output_response(ctx: typer.Context, response: CLIResponse) -> None:
+    if ctx.obj["json"]:
+        typer.echo(response.to_json())
+    else:
+        if isinstance(response.data, list):
+            for item in response.data:
+                if isinstance(item, dict):
+                    for k, v in item.items():
+                        typer.echo(f"  {k}: {v}")
+                    typer.echo()
+                else:
+                    typer.echo(f"  {item}")
+        elif isinstance(response.data, dict):
+            for k, v in response.data.items():
+                typer.echo(f"  {k}: {v}")
+        else:
+            typer.echo(str(response.data))
+
+
+def _output_error(ctx: typer.Context, error: CLIError) -> None:
+    if ctx.obj["json"]:
+        typer.echo(error.to_json(), err=True)
+    else:
+        console.print(f"[red]Error:[/red] {error.error}")
+        if error.remediation:
+            console.print(f"[yellow]Fix:[/yellow] {error.remediation}")
+    raise typer.Exit(code=error.exit_code)
+
+
+def strip_at(username: str) -> str:
+    """Remove leading @ from usernames."""
+    return username.lstrip("@")
+
+
+def _require_growth(ctx: typer.Context) -> None:
+    """Abort if --enable-growth-actions was not passed."""
+    if not ctx.obj.get("enable_growth"):
+        err = CLIError(
+            exit_code=ExitCode.POLICY_BLOCKED,
+            error="Growth actions are disabled by default",
+            remediation="Add --enable-growth-actions flag",
+        )
+        if ctx.obj.get("json"):
+            typer.echo(err.to_json(), err=True)
+        else:
+            typer.echo("Error: Growth actions are disabled by default.")
+            typer.echo("Add --enable-growth-actions to enable follow/unfollow and automated engagement.")
+        raise typer.Exit(code=ExitCode.POLICY_BLOCKED)
+
+
+def stage(source: str, backend_name: str) -> str:
+    """Resolve a media source (path or URL) for the given backend."""
+    needs_url = backend_name.startswith("graph")
+    return resolve_media(source, needs_url=needs_url)
+
+
+def dispatch(
+    ctx: typer.Context,
+    feature: Feature,
+    action: Callable[[Backend], Any],
+) -> None:
+    """Route feature → backend → call action → output result."""
+    # Check dry-run
+    if ctx.obj.get("dry_run"):
+        router = _get_router(ctx)
+        backend_name = router.route(feature)
+        typer.echo(json.dumps({
+            "dry_run": True,
+            "feature": feature.value,
+            "backend": backend_name,
+        }))
+        return
+
+    # Force backend override
+    forced = ctx.obj.get("backend")
+    if forced and forced.value != "auto":
+        backend_name = forced.value
+    else:
+        router = _get_router(ctx)
+        backend_name = router.route(feature)
+
+    if backend_name is None:
+        # Determine whether it's a policy block or missing backend
+        config = ctx.obj["config"]
+        if config.compliance_mode == ComplianceMode.OFFICIAL_ONLY:
+            _output_error(ctx, CLIError(
+                exit_code=ExitCode.POLICY_BLOCKED,
+                error=f"Feature '{feature.value}' is blocked by compliance mode '{config.compliance_mode.value}'",
+                remediation="Run: clinstagram config mode hybrid-safe",
+            ))
+        else:
+            _output_error(ctx, CLIError(
+                exit_code=ExitCode.CAPABILITY_UNAVAILABLE,
+                error=f"No backend available for '{feature.value}'",
+                remediation="Run: clinstagram auth status  — then connect a backend",
+            ))
+        return
+
+    try:
+        backend = _instantiate_backend(ctx, backend_name, feature)
+    except Exception as exc:
+        _output_error(ctx, CLIError(
+            exit_code=ExitCode.AUTH_ERROR,
+            error=f"Failed to initialize {backend_name}: {exc}",
+            remediation=f"Run: clinstagram auth {'login' if backend_name == 'private' else 'connect-' + backend_name.split('_')[1]}",
+        ))
+        return
+
+    try:
+        # Store backend_name in context for stage() calls in action lambdas
+        ctx.obj["_backend_name"] = backend_name
+        result = action(backend)
+        _output_response(ctx, CLIResponse(
+            data=result,
+            backend_used=backend_name,
+        ))
+    except NotImplementedError as exc:
+        _output_error(ctx, CLIError(
+            exit_code=ExitCode.CAPABILITY_UNAVAILABLE,
+            error=str(exc),
+            remediation="Try a different backend: --backend private",
+        ))
+    except Exception as exc:
+        error_str = str(exc)
+        if "rate" in error_str.lower() or "throttl" in error_str.lower():
+            _output_error(ctx, CLIError(
+                exit_code=ExitCode.RATE_LIMITED,
+                error=error_str,
+                retry_after=60,
+            ))
+        elif "challenge" in error_str.lower():
+            _output_error(ctx, CLIError(
+                exit_code=ExitCode.CHALLENGE_REQUIRED,
+                error=error_str,
+                challenge_type="unknown",
+            ))
+        elif "login" in error_str.lower() or "auth" in error_str.lower() or "session" in error_str.lower():
+            _output_error(ctx, CLIError(
+                exit_code=ExitCode.AUTH_ERROR,
+                error=error_str,
+                remediation="Run: clinstagram auth login",
+            ))
+        else:
+            _output_error(ctx, CLIError(
+                exit_code=ExitCode.API_ERROR,
+                error=error_str,
+            ))
+    finally:
+        cleanup_temp_files()
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/commands/_dispatch.py
+
+FILE: src/clinstagram/commands/analytics.py
+----------------------------------------------------------------------------------------------------
+from __future__ import annotations
+
+import typer
+
+from clinstagram.backends.capabilities import Feature
+from clinstagram.commands._dispatch import dispatch, make_subgroup
+
+analytics_app = make_subgroup("View analytics and insights")
+
+
+@analytics_app.command("profile")
+def profile(ctx: typer.Context):
+    """Show profile analytics (followers, posts, engagement)."""
+    dispatch(ctx, Feature.ANALYTICS_PROFILE, lambda b: b.analytics_profile())
+
+
+@analytics_app.command("post")
+def post(
+    ctx: typer.Context,
+    media_id: str = typer.Argument(..., help="Media ID or 'latest'"),
+):
+    """Show analytics for a specific post."""
+    dispatch(ctx, Feature.ANALYTICS_POST, lambda b: b.analytics_post(media_id))
+
+
+@analytics_app.command("hashtag")
+def hashtag(
+    ctx: typer.Context,
+    tag: str = typer.Argument(..., help="Hashtag to analyze (without #)"),
+):
+    """Show hashtag analytics."""
+    dispatch(ctx, Feature.ANALYTICS_HASHTAG, lambda b: b.analytics_hashtag(tag))
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/commands/analytics.py
+
+FILE: src/clinstagram/commands/auth.py
+----------------------------------------------------------------------------------------------------
+from __future__ import annotations
+
+import json
+from typing import Optional
+
+import typer
+from rich.console import Console
+from rich.table import Table
+
+from clinstagram.auth.keychain import SecretsStore
+from clinstagram.commands._dispatch import make_subgroup
+
+console = Console()
+auth_app = make_subgroup("Manage authentication (Graph & Private)")
+
+
+def _get_secrets(ctx: typer.Context) -> SecretsStore:
+    if "secrets" in ctx.obj:
+        return ctx.obj["secrets"]
+    return SecretsStore(backend="keyring")
+
+
+@auth_app.command("status")
+def status(ctx: typer.Context):
+    """Show authentication status for the current account."""
+    account = ctx.obj["account"]
+    config = ctx.obj["config"]
+    secrets = _get_secrets(ctx)
+
+    backends = {}
+    for name in ["graph_ig", "graph_fb", "private"]:
+        backends[name] = secrets.has_backend(account, name)
+
+    result = {
+        "account": account,
+        "compliance_mode": config.compliance_mode.value,
+        "backends": backends,
+    }
+
+    if ctx.obj["json"]:
+        typer.echo(json.dumps(result, indent=2))
+    else:
+        table = Table(title=f"Auth Status: {account}")
+        table.add_column("Backend", style="cyan")
+        table.add_column("Status", style="green")
+        for name, active in backends.items():
+            table.add_row(name, "Active" if active else "Not configured")
+        console.print(table)
+        console.print(f"Compliance mode: [bold]{config.compliance_mode.value}[/bold]")
+
+
+@auth_app.command("connect-ig")
+def connect_ig(ctx: typer.Context):
+    """Connect via Instagram Login (OAuth). Enables posting, comments, analytics."""
+    typer.echo("Instagram Login OAuth flow — coming in Phase 2.")
+    raise typer.Exit(code=1)
+
+
+@auth_app.command("connect-fb")
+def connect_fb(ctx: typer.Context):
+    """Connect via Facebook Login (OAuth + Page). Enables DMs, webhooks."""
+    typer.echo("Facebook Login OAuth flow — coming in Phase 2.")
+    raise typer.Exit(code=1)
+
+
+@auth_app.command("login")
+def login(
+    ctx: typer.Context,
+    username: str = typer.Option(..., "--username", "-u", prompt=True, help="Instagram username, email, or phone number"),
+    password: Optional[str] = typer.Option(None, "--password", "-p", help="Instagram password (prompted if needed)"),
+    totp_seed: str = typer.Option("", "--totp-seed", help="TOTP seed for 2FA (base32)"),
+    proxy: str = typer.Option("", "--proxy", help="Proxy URL (recommended for private API)"),
+    locale: str = typer.Option("", "--locale", help="Locale (e.g. en_GB, pt_BR). Auto-detected if omitted"),
+    timezone: str = typer.Option("", "--timezone", help="Timezone offset in seconds (e.g. 0). Auto-detected if omitted"),
+    delay_min: int = typer.Option(1, "--delay-min", help="Min delay between actions (seconds)"),
+    delay_max: int = typer.Option(3, "--delay-max", help="Max delay between actions (seconds)"),
+):
+    """Login via Private API (instagrapi). Accepts username, email, or phone."""
+    from clinstagram.auth.private_login import LoginConfig, login_private
+
+    account = ctx.obj["account"]
+    secrets = _get_secrets(ctx)
+
+    # Check for existing session
+    existing_session = secrets.get(account, "private_session") or ""
+    
+    # Prompt for password if not provided AND no session exists
+    effective_password = password
+    if not effective_password and not existing_session:
+        effective_password = typer.prompt("Instagram password", hide_input=True)
+
+    # Warn about missing proxy
+    effective_proxy = proxy or ctx.obj.get("proxy", "")
+    if not effective_proxy and not ctx.obj["json"]:
+        console.print("[yellow]Warning:[/yellow] No proxy set. Instagram may flag your IP.")
+        console.print("  Use --proxy or set proxy in config.toml for safety.")
+
+    config = LoginConfig(
+        username=username,
+        password=effective_password or "",
+        totp_seed=totp_seed,
+        proxy=effective_proxy,
+        locale=locale,
+        timezone=timezone,
+        delay_range=[delay_min, delay_max],
+    )
+
+    result = login_private(config, existing_session=existing_session)
+
+    if result.success:
+        # Store session in keychain
+        secrets.set(account, "private_session", result.session_json)
+
+        if ctx.obj["json"]:
+            typer.echo(json.dumps({
+                "status": "success",
+                "username": result.username,
+                "backend": "private",
+                "relogin": result.relogin,
+            }))
+        else:
+            label = "Re-authenticated" if result.relogin else "Logged in"
+            console.print(f"[green]{label}[/green] as [bold]{result.username}[/bold] (private API)")
+    else:
+        error_data = {
+            "status": "error",
+            "error": result.error,
+            "challenge_required": result.challenge_required,
+        }
+        if result.remediation:
+            error_data["remediation"] = result.remediation
+        if ctx.obj["json"]:
+            typer.echo(json.dumps(error_data), err=True)
+        else:
+            console.print(f"[red]Login failed:[/red] {result.error}")
+            if result.remediation:
+                console.print(f"[yellow]Fix:[/yellow] {result.remediation}")
+            if result.challenge_required:
+                console.print("[yellow]Tip:[/yellow] Run login again — Instagram will send a verification code.")
+        raise typer.Exit(code=2)
+
+
+@auth_app.command("probe")
+def probe(ctx: typer.Context):
+    """Test all backends and report available features."""
+    account = ctx.obj["account"]
+    secrets = _get_secrets(ctx)
+    result = {"account": account, "backends": {}}
+    for name in ["graph_ig", "graph_fb", "private"]:
+        result["backends"][name] = {"active": secrets.has_backend(account, name)}
+    if ctx.obj["json"]:
+        typer.echo(json.dumps(result, indent=2))
+    else:
+        for name, info in result["backends"].items():
+            s = "Active" if info["active"] else "Not configured"
+            typer.echo(f"  {name}: {s}")
+
+
+@auth_app.command("logout")
+def logout(
+    ctx: typer.Context,
+    confirm: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation"),
+):
+    """Clear stored sessions for the current account."""
+    if not confirm:
+        typer.confirm("Clear all stored sessions?", abort=True)
+    account = ctx.obj["account"]
+    secrets = _get_secrets(ctx)
+    for name in ["graph_ig_token", "graph_fb_token", "private_session"]:
+        secrets.delete(account, name)
+    typer.echo(f"Cleared sessions for account: {account}")
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/commands/auth.py
+
+FILE: src/clinstagram/commands/comments.py
+----------------------------------------------------------------------------------------------------
+from __future__ import annotations
+
+import typer
+
+from clinstagram.backends.capabilities import Feature
+from clinstagram.commands._dispatch import _require_growth, dispatch, make_subgroup
+
+comments_app = make_subgroup("Manage comments")
+
+
+@comments_app.command("list")
+def list_comments(
+    ctx: typer.Context,
+    media_id: str = typer.Argument(..., help="Media ID"),
+    limit: int = typer.Option(50, "--limit", "-n", help="Max comments to return"),
+):
+    """List comments on a post."""
+    dispatch(ctx, Feature.COMMENTS_LIST, lambda b: b.comments_list(media_id, limit))
+
+
+@comments_app.command("reply")
+def reply(
+    ctx: typer.Context,
+    comment_id: str = typer.Argument(..., help="Comment ID (media_id:comment_id from 'comments list')"),
+    text: str = typer.Argument(..., help="Reply text"),
+):
+    """Reply to a comment. Requires --enable-growth-actions."""
+    _require_growth(ctx)
+    dispatch(ctx, Feature.COMMENTS_REPLY, lambda b: b.comments_reply(comment_id, text))
+
+
+@comments_app.command("add")
+def add(
+    ctx: typer.Context,
+    media_id: str = typer.Argument(..., help="Media ID to comment on"),
+    text: str = typer.Argument(..., help="Comment text"),
+):
+    """Comment on a post. Requires --enable-growth-actions."""
+    _require_growth(ctx)
+    dispatch(ctx, Feature.COMMENTS_ADD, lambda b: b.comments_add(media_id, text))
+
+
+
+@comments_app.command("delete")
+def delete(
+    ctx: typer.Context,
+    comment_id: str = typer.Argument(..., help="Comment ID (media_id:comment_id from 'comments list')"),
+):
+    """Delete a comment."""
+    dispatch(ctx, Feature.COMMENTS_DELETE, lambda b: b.comments_delete(comment_id))
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/commands/comments.py
+
+FILE: src/clinstagram/commands/config_cmd.py
+----------------------------------------------------------------------------------------------------
+from __future__ import annotations
+
+import json
+
+import typer
+
+from clinstagram.commands._dispatch import make_subgroup
+from clinstagram.config import ComplianceMode, save_config
+
+config_app = make_subgroup("Manage configuration")
+
+
+@config_app.command("show")
+def show(ctx: typer.Context):
+    """Print current configuration."""
+    config = ctx.obj["config"]
+    data = config.model_dump(mode="json")
+    if ctx.obj["json"]:
+        typer.echo(json.dumps(data, indent=2))
+    else:
+        for key, val in data.items():
+            typer.echo(f"  {key}: {val}")
+
+
+@config_app.command("mode")
+def set_mode(ctx: typer.Context, mode: ComplianceMode = typer.Argument(...)):
+    """Set compliance mode (official-only, hybrid-safe, private-enabled)."""
+    config = ctx.obj["config"]
+    config.compliance_mode = mode
+    save_config(config, ctx.obj.get("config_dir"))
+    typer.echo(f"Compliance mode set to: {mode.value}")
+
+
+@config_app.command("set")
+def set_value(
+    ctx: typer.Context,
+    key: str = typer.Argument(..., help="Config key"),
+    value: str = typer.Argument(..., help="New value"),
+):
+    """Set a configuration value."""
+    config = ctx.obj["config"]
+    if hasattr(config, key):
+        setattr(config, key, value)
+        save_config(config, ctx.obj.get("config_dir"))
+        typer.echo(f"Set {key} = {value}")
+    else:
+        typer.echo(f"Unknown config key: {key}", err=True)
+        raise typer.Exit(code=1)
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/commands/config_cmd.py
+
+FILE: src/clinstagram/commands/dm.py
+----------------------------------------------------------------------------------------------------
+from __future__ import annotations
+
+import typer
+
+from clinstagram.backends.capabilities import Feature
+from clinstagram.commands._dispatch import dispatch, make_subgroup, stage, strip_at
+
+dm_app = make_subgroup("Manage direct messages")
+
+
+@dm_app.command("inbox")
+def inbox(
+    ctx: typer.Context,
+    unread: bool = typer.Option(False, "--unread", help="Show only unread threads"),
+    limit: int = typer.Option(20, "--limit", "-n", help="Max threads to return"),
+):
+    """List DM inbox threads."""
+    dispatch(ctx, Feature.DM_INBOX, lambda b: b.dm_inbox(limit, unread))
+
+
+@dm_app.command("thread")
+def thread(
+    ctx: typer.Context,
+    thread_id: str = typer.Argument(..., help="Thread ID"),
+    limit: int = typer.Option(20, "--limit", "-n", help="Max messages to return"),
+):
+    """View messages in a DM thread."""
+    dispatch(ctx, Feature.DM_THREAD, lambda b: b.dm_thread(thread_id, limit))
+
+
+@dm_app.command("send")
+def send(
+    ctx: typer.Context,
+    user: str = typer.Argument(..., help="Username to message (with or without @)"),
+    message: str = typer.Argument(..., help="Message text"),
+):
+    """Send a text DM."""
+    clean_user = strip_at(user)
+    dispatch(ctx, Feature.DM_COLD_SEND, lambda b: b.dm_send(clean_user, message))
+
+
+@dm_app.command("send-media")
+def send_media(
+    ctx: typer.Context,
+    user: str = typer.Argument(..., help="Username to message (with or without @)"),
+    media: str = typer.Argument(..., help="Media path or URL"),
+):
+    """Send a media DM (photo/video)."""
+    clean_user = strip_at(user)
+    dispatch(ctx, Feature.DM_SEND_MEDIA, lambda b: b.dm_send_media(
+        clean_user, stage(media, ctx.obj["_backend_name"]),
+    ))
+
+
+@dm_app.command("search")
+def search(
+    ctx: typer.Context,
+    query: str = typer.Argument(..., help="Search query"),
+):
+    """Search DM threads by keyword."""
+    def _search(b):
+        threads = b.dm_inbox(100, False)
+        q = query.lower()
+        return [t for t in threads if q in str(t).lower()]
+    dispatch(ctx, Feature.DM_SEARCH, _search)
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/commands/dm.py
+
+FILE: src/clinstagram/commands/followers.py
+----------------------------------------------------------------------------------------------------
+from __future__ import annotations
+
+import typer
+
+from clinstagram.backends.capabilities import Feature
+from clinstagram.commands._dispatch import _require_growth, dispatch, make_subgroup, strip_at
+from clinstagram.models import CLIError, ExitCode
+
+followers_app = make_subgroup("Manage followers")
+
+
+@followers_app.command("list")
+def list_followers(
+    ctx: typer.Context,
+    limit: int = typer.Option(100, "--limit", "-n", help="Max followers to return"),
+):
+    """List your followers."""
+    dispatch(ctx, Feature.FOLLOWERS_LIST, lambda b: b.followers_list(limit))
+
+
+@followers_app.command("following")
+def following(
+    ctx: typer.Context,
+    limit: int = typer.Option(100, "--limit", "-n", help="Max accounts to return"),
+):
+    """List accounts you follow."""
+    dispatch(ctx, Feature.FOLLOWERS_FOLLOWING, lambda b: b.followers_following(limit))
+
+
+@followers_app.command("follow")
+def follow(
+    ctx: typer.Context,
+    user: str = typer.Argument(..., help="Username to follow (with or without @)"),
+):
+    """Follow a user. Requires --enable-growth-actions."""
+    _require_growth(ctx)
+    dispatch(ctx, Feature.FOLLOW, lambda b: b.follow(strip_at(user)))
+
+
+@followers_app.command("unfollow")
+def unfollow(
+    ctx: typer.Context,
+    user: str = typer.Argument(..., help="Username to unfollow (with or without @)"),
+):
+    """Unfollow a user. Requires --enable-growth-actions."""
+    _require_growth(ctx)
+    dispatch(ctx, Feature.UNFOLLOW, lambda b: b.unfollow(strip_at(user)))
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/commands/followers.py
+
+FILE: src/clinstagram/commands/hashtag.py
+----------------------------------------------------------------------------------------------------
+from __future__ import annotations
+
+import typer
+
+from clinstagram.backends.capabilities import Feature
+from clinstagram.commands._dispatch import dispatch, make_subgroup
+
+hashtag_app = make_subgroup("Browse hashtag feeds")
+
+
+@hashtag_app.command("top")
+def top(
+    ctx: typer.Context,
+    tag: str = typer.Argument(..., help="Hashtag to browse (without #)"),
+    limit: int = typer.Option(20, "--limit", "-n", help="Max posts to return"),
+):
+    """Browse top posts for a hashtag."""
+    dispatch(ctx, Feature.HASHTAG_TOP, lambda b: b.hashtag_top(tag, limit))
+
+
+@hashtag_app.command("recent")
+def recent(
+    ctx: typer.Context,
+    tag: str = typer.Argument(..., help="Hashtag to browse (without #)"),
+    limit: int = typer.Option(20, "--limit", "-n", help="Max posts to return"),
+):
+    """Browse recent posts for a hashtag."""
+    dispatch(ctx, Feature.HASHTAG_RECENT, lambda b: b.hashtag_recent(tag, limit))
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/commands/hashtag.py
+
+FILE: src/clinstagram/commands/like.py
+----------------------------------------------------------------------------------------------------
+from __future__ import annotations
+
+import typer
+
+from clinstagram.backends.capabilities import Feature
+from clinstagram.commands._dispatch import _require_growth, dispatch, make_subgroup
+
+like_app = make_subgroup("Like and unlike posts")
+
+
+@like_app.command("post")
+def like_post(
+    ctx: typer.Context,
+    media_id: str = typer.Argument(..., help="Media ID to like"),
+):
+    """Like a post. Requires --enable-growth-actions."""
+    _require_growth(ctx)
+    dispatch(ctx, Feature.LIKE_POST, lambda b: b.like_post(media_id))
+
+
+@like_app.command("undo")
+def unlike_post(
+    ctx: typer.Context,
+    media_id: str = typer.Argument(..., help="Media ID to unlike"),
+):
+    """Unlike a post. Requires --enable-growth-actions."""
+    _require_growth(ctx)
+    dispatch(ctx, Feature.UNLIKE_POST, lambda b: b.unlike_post(media_id))
+
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/commands/like.py
+
+FILE: src/clinstagram/commands/post.py
+----------------------------------------------------------------------------------------------------
+from __future__ import annotations
+
+from typing import Optional
+
+import typer
+
+from clinstagram.backends.capabilities import Feature
+from clinstagram.commands._dispatch import dispatch, make_subgroup, stage
+
+post_app = make_subgroup("Post photos, videos, reels, carousels")
+
+
+@post_app.command("photo")
+def photo(
+    ctx: typer.Context,
+    path: str = typer.Argument(..., help="Image path or URL"),
+    caption: str = typer.Option("", "--caption", "-c", help="Post caption"),
+    location: str = typer.Option("", "--location", "-l", help="Location ID"),
+    tags: Optional[list[str]] = typer.Option(None, "--tags", "-t", help="User tags"),
+):
+    """Post a photo."""
+    dispatch(ctx, Feature.POST_PHOTO, lambda b: b.post_photo(
+        stage(path, ctx.obj["_backend_name"]), caption, location, tags,
+    ))
+
+
+@post_app.command("video")
+def video(
+    ctx: typer.Context,
+    path: str = typer.Argument(..., help="Video path or URL"),
+    caption: str = typer.Option("", "--caption", "-c", help="Post caption"),
+    thumbnail: str = typer.Option("", "--thumbnail", help="Thumbnail path or URL"),
+    location: str = typer.Option("", "--location", "-l", help="Location ID"),
+):
+    """Post a video."""
+    dispatch(ctx, Feature.POST_VIDEO, lambda b: b.post_video(
+        stage(path, ctx.obj["_backend_name"]), caption, thumbnail, location,
+    ))
+
+
+@post_app.command("reel")
+def reel(
+    ctx: typer.Context,
+    path: str = typer.Argument(..., help="Video path or URL"),
+    caption: str = typer.Option("", "--caption", "-c", help="Post caption"),
+    thumbnail: str = typer.Option("", "--thumbnail", help="Thumbnail path or URL"),
+    audio: str = typer.Option("", "--audio", help="Audio name"),
+):
+    """Post a reel."""
+    dispatch(ctx, Feature.POST_REEL, lambda b: b.post_reel(
+        stage(path, ctx.obj["_backend_name"]), caption, thumbnail, audio,
+    ))
+
+
+@post_app.command("carousel")
+def carousel(
+    ctx: typer.Context,
+    paths: list[str] = typer.Argument(..., help="Image/video paths or URLs"),
+    caption: str = typer.Option("", "--caption", "-c", help="Post caption"),
+):
+    """Post a carousel (multiple images/videos)."""
+    dispatch(ctx, Feature.POST_CAROUSEL, lambda b: b.post_carousel(
+        [stage(p, ctx.obj["_backend_name"]) for p in paths], caption,
+    ))
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/commands/post.py
+
+FILE: src/clinstagram/commands/story.py
+----------------------------------------------------------------------------------------------------
+from __future__ import annotations
+
+from typing import Optional
+
+import typer
+
+from clinstagram.backends.capabilities import Feature
+from clinstagram.commands._dispatch import dispatch, make_subgroup, stage, strip_at
+
+story_app = make_subgroup("Manage stories")
+
+
+@story_app.command("list")
+def list_stories(
+    ctx: typer.Context,
+    user: str = typer.Argument("", help="Username (omit for own stories)"),
+):
+    """List stories for a user (or yourself)."""
+    clean_user = strip_at(user) if user else ""
+    feature = Feature.STORY_VIEW_OTHERS if clean_user else Feature.STORY_LIST
+    dispatch(ctx, feature, lambda b: b.story_list(clean_user))
+
+
+@story_app.command("post-photo")
+def post_photo(
+    ctx: typer.Context,
+    path: str = typer.Argument(..., help="Photo path or URL"),
+    mention: Optional[list[str]] = typer.Option(None, "--mention", "-m", help="Mention users"),
+    link: str = typer.Option("", "--link", help="Swipe-up link URL"),
+):
+    """Post a photo story."""
+    mentions = [strip_at(m) for m in mention] if mention else None
+    dispatch(ctx, Feature.STORY_POST, lambda b: b.story_post_photo(
+        stage(path, ctx.obj["_backend_name"]), mentions, link,
+    ))
+
+
+@story_app.command("post-video")
+def post_video(
+    ctx: typer.Context,
+    path: str = typer.Argument(..., help="Video path or URL"),
+    mention: Optional[list[str]] = typer.Option(None, "--mention", "-m", help="Mention users"),
+    link: str = typer.Option("", "--link", help="Swipe-up link URL"),
+):
+    """Post a video story."""
+    mentions = [strip_at(m) for m in mention] if mention else None
+    dispatch(ctx, Feature.STORY_POST, lambda b: b.story_post_video(
+        stage(path, ctx.obj["_backend_name"]), mentions, link,
+    ))
+
+
+@story_app.command("viewers")
+def viewers(
+    ctx: typer.Context,
+    story_id: str = typer.Argument(..., help="Story ID"),
+):
+    """List viewers of a story."""
+    dispatch(ctx, Feature.STORY_VIEWERS, lambda b: b.story_viewers(story_id))
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/commands/story.py
+
+FILE: src/clinstagram/commands/user.py
+----------------------------------------------------------------------------------------------------
+from __future__ import annotations
+
+import typer
+
+from clinstagram.backends.capabilities import Feature
+from clinstagram.commands._dispatch import dispatch, make_subgroup, strip_at
+
+user_app = make_subgroup("User lookup and search")
+
+
+@user_app.command("info")
+def info(
+    ctx: typer.Context,
+    username: str = typer.Argument(..., help="Username to look up (with or without @)"),
+):
+    """Get detailed info for a user."""
+    dispatch(ctx, Feature.USER_INFO, lambda b: b.user_info(strip_at(username)))
+
+
+@user_app.command("search")
+def search(
+    ctx: typer.Context,
+    query: str = typer.Argument(..., help="Search query"),
+):
+    """Search for users by name or username."""
+    dispatch(ctx, Feature.USER_SEARCH, lambda b: b.user_search(query))
+
+
+@user_app.command("posts")
+def posts(
+    ctx: typer.Context,
+    username: str = typer.Argument(..., help="Username to look up (with or without @)"),
+    limit: int = typer.Option(20, "--limit", help="Number of posts to list"),
+):
+    """List a user's recent media."""
+    dispatch(ctx, Feature.USER_POSTS, lambda b: b.user_posts(strip_at(username), limit=limit))
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/commands/user.py
+
+FILE: src/clinstagram/config.py
+----------------------------------------------------------------------------------------------------
+from __future__ import annotations
+
+import sys
+from enum import Enum
+from pathlib import Path
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
+import tomli_w
+
+
+class ComplianceMode(str, Enum):
+    OFFICIAL_ONLY = "official-only"
+    HYBRID_SAFE = "hybrid-safe"
+    PRIVATE_ENABLED = "private-enabled"
+
+
+class BackendType(str, Enum):
+    AUTO = "auto"
+    GRAPH_IG = "graph_ig"
+    GRAPH_FB = "graph_fb"
+    PRIVATE = "private"
+
+
+class RateLimits(BaseModel):
+    graph_dm_per_hour: int = 200
+    private_dm_per_hour: int = 30
+    private_follows_per_day: int = 20
+    private_likes_per_hour: int = 20
+    request_delay_min: float = 2.0
+    request_delay_max: float = 5.0
+    request_jitter: bool = True
+
+
+class MediaStaging(BaseModel):
+    provider: str = "local-only"
+    cleanup_after_publish: bool = True
+
+
+class GlobalConfig(BaseModel):
+    default_account: str = "default"
+    compliance_mode: ComplianceMode = ComplianceMode.HYBRID_SAFE
+    preferred_backend: BackendType = BackendType.AUTO
+    proxy: Optional[str] = None
+    rate_limits: RateLimits = Field(default_factory=RateLimits)
+    media_staging: MediaStaging = Field(default_factory=MediaStaging)
+
+
+DEFAULT_CONFIG_DIR = Path.home() / ".clinstagram"
+
+
+def get_config_dir(override: Optional[Path] = None) -> Path:
+    return override or DEFAULT_CONFIG_DIR
+
+
+def get_account_dir(account: str, config_dir: Optional[Path] = None) -> Path:
+    return get_config_dir(config_dir) / "accounts" / account
+
+
+def ensure_dirs(config_dir: Optional[Path] = None) -> Path:
+    d = get_config_dir(config_dir)
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "accounts").mkdir(exist_ok=True)
+    (d / "logs").mkdir(exist_ok=True)
+    return d
+
+
+def load_config(config_dir: Optional[Path] = None) -> GlobalConfig:
+    d = get_config_dir(config_dir)
+    config_path = d / "config.toml"
+    if not config_path.exists():
+        ensure_dirs(config_dir)
+        cfg = GlobalConfig()
+        save_config(cfg, config_dir)
+        return cfg
+    with open(config_path, "rb") as f:
+        data = tomllib.load(f)
+    return GlobalConfig(**data)
+
+
+def _strip_none(obj: object) -> object:
+    """Recursively remove None values — TOML cannot serialize them."""
+    if isinstance(obj, dict):
+        return {k: _strip_none(v) for k, v in obj.items() if v is not None}
+    if isinstance(obj, list):
+        return [_strip_none(i) for i in obj]
+    return obj
+
+
+def save_config(config: GlobalConfig, config_dir: Optional[Path] = None) -> None:
+    d = ensure_dirs(config_dir)
+    config_path = d / "config.toml"
+    data = _strip_none(config.model_dump(mode="json"))
+    with open(config_path, "wb") as f:
+        tomli_w.dump(data, f)
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/config.py
+
+FILE: src/clinstagram/media.py
+----------------------------------------------------------------------------------------------------
+from __future__ import annotations
+
+import tempfile
+from pathlib import Path
+from urllib.parse import urlparse
+
+import httpx
+
+_temp_files: list[Path] = []
+
+# Max download size: 100 MB (Instagram's limits are ~100 MB for video)
+MAX_DOWNLOAD_BYTES = 100 * 1024 * 1024
+
+
+def _is_url(source: str) -> bool:
+    """Return True if source looks like an HTTP(S) URL."""
+    return source.startswith("http://") or source.startswith("https://")
+
+
+def resolve_media(source: str, needs_url: bool) -> str:
+    """
+    Resolve a media source for the appropriate backend.
+
+    Parameters
+    ----------
+    source : str
+        Either a local file path or an HTTP(S) URL.
+    needs_url : bool
+        True if the backend needs a public URL (Graph API).
+        False if the backend needs a local file path (Private API).
+
+    Returns
+    -------
+    str
+        The resolved media path or URL.
+
+    Raises
+    ------
+    FileNotFoundError
+        If source is a local path but the file does not exist.
+    ValueError
+        If a local path is given but the backend requires a URL.
+    httpx.HTTPStatusError
+        If downloading a URL fails.
+    """
+    if _is_url(source):
+        if needs_url:
+            return source
+
+        # Download to a temp file for the private backend
+        response = httpx.get(source, follow_redirects=True, timeout=30.0)
+        response.raise_for_status()
+        if len(response.content) > MAX_DOWNLOAD_BYTES:
+            raise ValueError(f"Media too large: {len(response.content)} bytes (max {MAX_DOWNLOAD_BYTES})")
+
+        # Infer extension from URL path
+        parsed = urlparse(source)
+        suffix = Path(parsed.path).suffix or ".jpg"
+        tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+        tmp.write(response.content)
+        tmp.close()
+        path = Path(tmp.name)
+        _temp_files.append(path)
+        return str(path)
+
+    # Local path
+    local = Path(source)
+    if not local.exists():
+        raise FileNotFoundError(f"Media file not found: {source}")
+
+    if needs_url:
+        raise ValueError(
+            "Graph API requires a public URL. "
+            "Upload your media first or use --backend private"
+        )
+
+    return str(local)
+
+
+def cleanup_temp_files() -> None:
+    """Remove any temporary files created during media staging."""
+    for path in _temp_files:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
+    _temp_files.clear()
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/media.py
+
+FILE: src/clinstagram/models.py
+----------------------------------------------------------------------------------------------------
+from __future__ import annotations
+
+from enum import IntEnum
+from typing import Any, Optional
+
+from pydantic import BaseModel
+
+
+class ExitCode(IntEnum):
+    SUCCESS = 0
+    USER_ERROR = 1
+    AUTH_ERROR = 2
+    RATE_LIMITED = 3
+    API_ERROR = 4
+    CHALLENGE_REQUIRED = 5
+    POLICY_BLOCKED = 6
+    CAPABILITY_UNAVAILABLE = 7
+
+
+class CLIResponse(BaseModel):
+    exit_code: ExitCode = ExitCode.SUCCESS
+    data: Any = None
+    backend_used: Optional[str] = None
+
+    def to_json(self) -> str:
+        return self.model_dump_json()
+
+
+class CLIError(BaseModel):
+    exit_code: ExitCode
+    error: str
+    remediation: Optional[str] = None
+    retry_after: Optional[int] = None
+    challenge_type: Optional[str] = None
+    challenge_url: Optional[str] = None
+
+    def to_json(self) -> str:
+        return self.model_dump_json(exclude_none=True)
+----------------------------------------------------------------------------------------------------
+END FILE: src/clinstagram/models.py
+
+FILE: tests/__init__.py
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+END FILE: tests/__init__.py
+
+FILE: tests/conftest.py
+----------------------------------------------------------------------------------------------------
+import pytest
+from pathlib import Path
+
+
+@pytest.fixture
+def tmp_config_dir(tmp_path):
+    """Provide a temporary config directory instead of ~/.clinstagram/"""
+    return tmp_path / ".clinstagram"
+----------------------------------------------------------------------------------------------------
+END FILE: tests/conftest.py
+
+FILE: tests/test_backends_base.py
+----------------------------------------------------------------------------------------------------
+"""Verify both backends implement the Backend ABC."""
+
+from __future__ import annotations
+
+import inspect
+from unittest.mock import MagicMock
+
+import httpx
+import pytest
+
+from clinstagram.backends.base import Backend
+from clinstagram.backends.graph import GraphBackend
+from clinstagram.backends.private import PrivateBackend
+
+
+def _abstract_method_names() -> set[str]:
+    """Return the names of all abstract methods (and abstract properties) on Backend."""
+    names = set()
+    for name, _ in inspect.getmembers(Backend):
+        if name.startswith("_"):
+            continue
+        # Check if it's declared abstract
+        obj = getattr(Backend, name, None)
+        if obj is None:
+            continue
+        # abstractmethod or abstractproperty (via @property @abstractmethod)
+        if getattr(obj, "__isabstractmethod__", False):
+            names.add(name)
+        # Handle @property wrapping @abstractmethod
+        if isinstance(obj, property) and getattr(obj.fget, "__isabstractmethod__", False):
+            names.add(name)
+    return names
+
+
+class TestGraphBackendImplementsInterface:
+    def test_is_subclass(self):
+        assert issubclass(GraphBackend, Backend)
+
+    def test_can_instantiate(self):
+        client = httpx.Client()
+        try:
+            backend = GraphBackend(token="test-token", login_type="ig", client=client)
+            assert isinstance(backend, Backend)
+        finally:
+            client.close()
+
+    def test_all_abstract_methods_implemented(self):
+        abstract = _abstract_method_names()
+        assert abstract, "Expected at least one abstract method on Backend"
+        for method_name in abstract:
+            impl = getattr(GraphBackend, method_name, None)
+            assert impl is not None, f"GraphBackend missing: {method_name}"
+            if isinstance(impl, property):
+                assert not getattr(impl.fget, "__isabstractmethod__", False), (
+                    f"GraphBackend.{method_name} is still abstract"
+                )
+            else:
+                assert not getattr(impl, "__isabstractmethod__", False), (
+                    f"GraphBackend.{method_name} is still abstract"
+                )
+
+    def test_name_property(self):
+        client = httpx.Client()
+        try:
+            ig = GraphBackend(token="t", login_type="ig", client=client)
+            assert ig.name == "graph_ig"
+        finally:
+            client.close()
+
+        client2 = httpx.Client()
+        try:
+            fb = GraphBackend(token="t", login_type="fb", client=client2)
+            assert fb.name == "graph_fb"
+        finally:
+            client2.close()
+
+    def test_invalid_login_type_raises(self):
+        client = httpx.Client()
+        try:
+            with pytest.raises(ValueError, match="login_type must be"):
+                GraphBackend(token="t", login_type="bad", client=client)
+        finally:
+            client.close()
+
+
+class TestPrivateBackendImplementsInterface:
+    def test_is_subclass(self):
+        assert issubclass(PrivateBackend, Backend)
+
+    def test_can_instantiate(self):
+        mock_client = MagicMock()
+        backend = PrivateBackend(client=mock_client)
+        assert isinstance(backend, Backend)
+
+    def test_all_abstract_methods_implemented(self):
+        abstract = _abstract_method_names()
+        for method_name in abstract:
+            impl = getattr(PrivateBackend, method_name, None)
+            assert impl is not None, f"PrivateBackend missing: {method_name}"
+            if isinstance(impl, property):
+                assert not getattr(impl.fget, "__isabstractmethod__", False), (
+                    f"PrivateBackend.{method_name} is still abstract"
+                )
+            else:
+                assert not getattr(impl, "__isabstractmethod__", False), (
+                    f"PrivateBackend.{method_name} is still abstract"
+                )
+
+    def test_name_property(self):
+        mock_client = MagicMock()
+        backend = PrivateBackend(client=mock_client)
+        assert backend.name == "private"
+
+
+class TestPrivateBackendAnalyticsProfile:
+    """Regression: analytics_profile must use user_info() for counts, not account_info()."""
+
+    def test_analytics_profile_uses_user_info_for_counts(self):
+        mock_client = MagicMock()
+        account = MagicMock()
+        account.pk = 12345
+        mock_client.account_info.return_value = account
+
+        user = MagicMock()
+        user.username = "testuser"
+        user.full_name = "Test User"
+        user.follower_count = 1000
+        user.following_count = 500
+        user.media_count = 50
+        user.biography = "Bio"
+        mock_client.user_info.return_value = user
+
+        backend = PrivateBackend(client=mock_client)
+        result = backend.analytics_profile()
+
+        mock_client.account_info.assert_called_once()
+        mock_client.user_info.assert_called_once_with(12345)
+        assert result["followers_count"] == 1000
+        assert result["following_count"] == 500
+        assert result["media_count"] == 50
+
+
+class TestPrivateBackendUserPosts:
+    """Test user_posts calls user_medias with correct args."""
+
+    def test_user_posts_returns_media_list(self):
+        mock_client = MagicMock()
+        user_info = MagicMock()
+        user_info.pk = "99999"
+        mock_client.user_info_by_username.return_value = user_info
+
+        media1 = MagicMock()
+        media1.pk = 111
+        media1.code = "ABC"
+        media1.media_type = 1
+        media1.caption_text = "Test caption"
+        media1.taken_at = None
+        media1.like_count = 10
+        media1.comment_count = 5
+        mock_client.user_medias.return_value = [media1]
+
+        backend = PrivateBackend(client=mock_client)
+        result = backend.user_posts("testuser", limit=10)
+
+        mock_client.user_info_by_username.assert_called_once_with("testuser")
+        mock_client.user_medias.assert_called_once_with(99999, amount=10)
+        assert len(result) == 1
+        assert result[0]["code"] == "ABC"
+        assert result[0]["like_count"] == 10
+
+
+class TestPrivateBackendLikePost:
+    def test_like_post_calls_media_like(self):
+        mock_client = MagicMock()
+        backend = PrivateBackend(client=mock_client)
+        result = backend.like_post("media123")
+        mock_client.media_like.assert_called_once_with("media123")
+        assert result["status"] == "liked"
+
+    def test_unlike_post_calls_media_unlike(self):
+        mock_client = MagicMock()
+        backend = PrivateBackend(client=mock_client)
+        result = backend.unlike_post("media123")
+        mock_client.media_unlike.assert_called_once_with("media123")
+        assert result["status"] == "unliked"
+
+
+class TestPrivateBackendCommentsAdd:
+    def test_comments_add_calls_media_comment(self):
+        mock_client = MagicMock()
+        comment = MagicMock()
+        comment.pk = 555
+        comment.text = "great post"
+        comment.user = None
+        comment.created_at_utc = None
+        mock_client.media_comment.return_value = comment
+        backend = PrivateBackend(client=mock_client)
+        result = backend.comments_add("media123", "great post")
+        mock_client.media_comment.assert_called_once_with("media123", "great post")
+        assert result["text"] == "great post"
+
+
+class TestPrivateBackendCommentsList:
+    def test_comments_list_returns_composite_ids(self):
+        mock_client = MagicMock()
+        comment = MagicMock()
+        comment.pk = 123
+        comment.text = "hello"
+        comment.user = None
+        comment.created_at_utc = None
+        mock_client.media_comments.return_value = [comment]
+        
+        backend = PrivateBackend(client=mock_client)
+        result = backend.comments_list("media999", limit=10)
+        
+        mock_client.media_comments.assert_called_once_with("media999", amount=10)
+        assert len(result) == 1
+        assert result[0]["id"] == "media999:123"
+
+
+class TestPrivateBackendCommentsReply:
+    def test_comments_reply_uses_media_comment_with_replied_to(self):
+        mock_client = MagicMock()
+        comment = MagicMock()
+        comment.pk = 456
+        comment.text = "reply text"
+        comment.user = None
+        comment.created_at_utc = None
+        mock_client.media_comment.return_value = comment
+
+        backend = PrivateBackend(client=mock_client)
+        result = backend.comments_reply("media999:123", "reply text")
+
+        mock_client.media_comment.assert_called_once_with(
+            "media999", "reply text", replied_to_comment_id=123
+        )
+        assert result["text"] == "reply text"
+
+
+
+class TestPrivateBackendHashtagBrowsing:
+    def test_hashtag_top_calls_hashtag_medias_top(self):
+        mock_client = MagicMock()
+        media = MagicMock()
+        media.pk = 777
+        media.code = "XYZ"
+        media.media_type = 1
+        media.caption_text = "tagged"
+        media.taken_at = None
+        media.like_count = 50
+        media.comment_count = 3
+        mock_client.hashtag_medias_top.return_value = [media]
+        backend = PrivateBackend(client=mock_client)
+        result = backend.hashtag_top("longevity", limit=10)
+        mock_client.hashtag_medias_top.assert_called_once_with("longevity", amount=10)
+        assert len(result) == 1
+        assert result[0]["code"] == "XYZ"
+
+    def test_hashtag_recent_calls_hashtag_medias_recent(self):
+        mock_client = MagicMock()
+        mock_client.hashtag_medias_recent.return_value = []
+        backend = PrivateBackend(client=mock_client)
+        result = backend.hashtag_recent("biotech", limit=5)
+        mock_client.hashtag_medias_recent.assert_called_once_with("biotech", amount=5)
+        assert result == []
+
+
+class TestBackendCannotBeInstantiated:
+    def test_abstract_class_raises(self):
+        with pytest.raises(TypeError):
+            Backend()  # type: ignore[abstract]
+----------------------------------------------------------------------------------------------------
+END FILE: tests/test_backends_base.py
+
+FILE: tests/test_capabilities.py
+----------------------------------------------------------------------------------------------------
+from clinstagram.backends.capabilities import Feature, can_backend_do
+
+
+def test_graph_ig_can_post():
+    assert can_backend_do("graph_ig", Feature.POST_PHOTO)
+    assert can_backend_do("graph_ig", Feature.POST_VIDEO)
+    assert can_backend_do("graph_ig", Feature.POST_REEL)
+
+
+def test_graph_ig_cannot_dm():
+    assert not can_backend_do("graph_ig", Feature.DM_INBOX)
+    assert not can_backend_do("graph_ig", Feature.DM_SEND_MEDIA)
+
+
+def test_graph_fb_can_dm():
+    assert can_backend_do("graph_fb", Feature.DM_INBOX)
+    assert can_backend_do("graph_fb", Feature.DM_REPLY)
+
+
+def test_graph_fb_cannot_cold_dm():
+    assert not can_backend_do("graph_fb", Feature.DM_COLD_SEND)
+
+
+def test_private_can_everything():
+    for feat in Feature:
+        assert can_backend_do("private", feat)
+
+
+def test_feature_enum_completeness():
+    assert Feature.POST_PHOTO in Feature
+    assert Feature.DM_INBOX in Feature
+    assert Feature.STORY_POST in Feature
+    assert Feature.FOLLOW in Feature
+    assert Feature.ANALYTICS_PROFILE in Feature
+----------------------------------------------------------------------------------------------------
+END FILE: tests/test_capabilities.py
+
+FILE: tests/test_cli.py
+----------------------------------------------------------------------------------------------------
+from typer.testing import CliRunner
+from clinstagram.cli import app
+
+runner = CliRunner()
+
+
+def test_help():
+    result = runner.invoke(app, ["--help"])
+    assert result.exit_code == 0
+    assert "instagram" in result.stdout.lower() or "clinstagram" in result.stdout.lower()
+
+
+def test_version():
+    result = runner.invoke(app, ["--version"])
+    assert result.exit_code == 0
+    assert "0.2.0" in result.stdout
+
+
+def test_auth_status_json(tmp_path, monkeypatch):
+    monkeypatch.setenv("CLINSTAGRAM_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("CLINSTAGRAM_TEST_MODE", "1")
+    result = runner.invoke(app, ["--json", "auth", "status"])
+    assert result.exit_code == 0
+
+
+def test_config_show_json(tmp_path, monkeypatch):
+    monkeypatch.setenv("CLINSTAGRAM_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("CLINSTAGRAM_TEST_MODE", "1")
+    result = runner.invoke(app, ["--json", "config", "show"])
+    assert result.exit_code == 0
+
+
+def test_config_mode_set(tmp_path, monkeypatch):
+    monkeypatch.setenv("CLINSTAGRAM_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("CLINSTAGRAM_TEST_MODE", "1")
+    result = runner.invoke(app, ["config", "mode", "official-only"])
+    assert result.exit_code == 0
+----------------------------------------------------------------------------------------------------
+END FILE: tests/test_cli.py
+
+FILE: tests/test_config.py
+----------------------------------------------------------------------------------------------------
+from clinstagram.config import GlobalConfig, RateLimits, ComplianceMode, BackendType
+
+
+def test_default_config():
+    cfg = GlobalConfig()
+    assert cfg.compliance_mode == ComplianceMode.HYBRID_SAFE
+    assert cfg.default_account == "default"
+
+
+def test_rate_limits_defaults():
+    rl = RateLimits()
+    assert rl.graph_dm_per_hour == 200
+    assert rl.private_dm_per_hour == 30
+    assert rl.request_jitter is True
+
+
+def test_compliance_modes():
+    for mode in ComplianceMode:
+        cfg = GlobalConfig(compliance_mode=mode)
+        assert cfg.compliance_mode == mode
+
+
+def test_backend_types():
+    assert BackendType.GRAPH_IG.value == "graph_ig"
+    assert BackendType.GRAPH_FB.value == "graph_fb"
+    assert BackendType.PRIVATE.value == "private"
+    assert BackendType.AUTO.value == "auto"
+----------------------------------------------------------------------------------------------------
+END FILE: tests/test_config.py
+
+FILE: tests/test_config_persistence.py
+----------------------------------------------------------------------------------------------------
+from clinstagram.config import GlobalConfig, ComplianceMode, load_config, save_config
+
+
+def test_save_and_reload(tmp_path):
+    cfg = GlobalConfig(compliance_mode=ComplianceMode.OFFICIAL_ONLY)
+    save_config(cfg, tmp_path)
+    loaded = load_config(tmp_path)
+    assert loaded.compliance_mode == ComplianceMode.OFFICIAL_ONLY
+    assert loaded.rate_limits.private_dm_per_hour == 30
+
+
+def test_default_config_created_on_first_load(tmp_path):
+    cfg = load_config(tmp_path)
+    assert cfg.compliance_mode == ComplianceMode.HYBRID_SAFE
+    assert (tmp_path / "config.toml").exists()
+    assert (tmp_path / "accounts").is_dir()
+    assert (tmp_path / "logs").is_dir()
+
+
+def test_modify_and_persist(tmp_path):
+    cfg = load_config(tmp_path)
+    cfg.compliance_mode = ComplianceMode.PRIVATE_ENABLED
+    cfg.rate_limits.private_dm_per_hour = 10
+    save_config(cfg, tmp_path)
+    reloaded = load_config(tmp_path)
+    assert reloaded.compliance_mode == ComplianceMode.PRIVATE_ENABLED
+    assert reloaded.rate_limits.private_dm_per_hour == 10
+----------------------------------------------------------------------------------------------------
+END FILE: tests/test_config_persistence.py
+
+FILE: tests/test_dispatch.py
+----------------------------------------------------------------------------------------------------
+"""Tests for the dispatch layer and all command modules."""
+from __future__ import annotations
+
+import json
+from unittest.mock import MagicMock, patch
+
+from typer.testing import CliRunner
+
+from clinstagram.cli import app
+
+runner = CliRunner()
+
+
+def _setup_all_backends():
+    """Pre-populate secrets for all three backends."""
+    from clinstagram.auth.keychain import BACKEND_TOKEN_MAP, SecretsStore
+
+    secrets = SecretsStore(backend="memory")
+    for backend_name, token_key in BACKEND_TOKEN_MAP.items():
+        secrets.set("default", token_key, "fake-token-12345")
+    return secrets
+
+
+# ── Dispatch error handling ──────────────────────────────────────────
+
+
+class TestDispatchNoBackend:
+    """When no backends are configured, commands should fail gracefully."""
+
+    def test_post_photo_no_backend(self, tmp_path):
+        result = runner.invoke(
+            app, ["--json", "post", "photo", "img.jpg"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 7  # CAPABILITY_UNAVAILABLE
+
+    def test_dm_inbox_no_backend(self, tmp_path):
+        result = runner.invoke(
+            app, ["--json", "dm", "inbox"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 7
+
+    def test_user_info_no_backend(self, tmp_path):
+        result = runner.invoke(
+            app, ["--json", "user", "info", "alice"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 7
+
+
+class TestDispatchDryRun:
+    """--dry-run should show routing without executing."""
+
+    def test_dry_run_shows_routing(self, monkeypatch, tmp_path):
+        secrets = _setup_all_backends()
+        monkeypatch.setattr("clinstagram.commands._dispatch._get_secrets", lambda ctx: secrets)
+        result = runner.invoke(
+            app, ["--dry-run", "--json", "post", "photo", "img.jpg"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["dry_run"] is True
+        assert data["feature"] == "post_photo"
+        assert data["backend"] == "graph_ig"
+
+
+class TestDispatchPolicyBlocked:
+    """official-only mode should block private-only features."""
+
+    def test_followers_list_official_only(self, tmp_path):
+        # Set mode to official-only
+        runner.invoke(
+            app, ["config", "mode", "official-only"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        result = runner.invoke(
+            app, ["--json", "followers", "list"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code in (6, 7)
+
+
+# ── Growth actions gate ──────────────────────────────────────────────
+
+
+class TestGrowthActionsGate:
+    """follow/unfollow require --enable-growth-actions."""
+
+    def test_follow_blocked_without_flag(self, tmp_path):
+        result = runner.invoke(
+            app, ["--json", "followers", "follow", "alice"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 6  # POLICY_BLOCKED
+
+    def test_unfollow_blocked_without_flag(self, tmp_path):
+        result = runner.invoke(
+            app, ["--json", "followers", "unfollow", "bob"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 6
+
+
+# ── Command help text ────────────────────────────────────────────────
+
+
+class TestCommandHelp:
+    """All command groups should show their subcommands in help."""
+
+    def test_post_help(self):
+        result = runner.invoke(app, ["post", "--help"])
+        assert result.exit_code == 0
+        assert "photo" in result.output
+        assert "video" in result.output
+        assert "reel" in result.output
+
+    def test_dm_help(self):
+        result = runner.invoke(app, ["dm", "--help"])
+        assert result.exit_code == 0
+        assert "inbox" in result.output
+        assert "send" in result.output
+
+    def test_story_help(self):
+        result = runner.invoke(app, ["story", "--help"])
+        assert result.exit_code == 0
+        assert "list" in result.output
+        assert "post-photo" in result.output
+
+    def test_comments_help(self):
+        result = runner.invoke(app, ["comments", "--help"])
+        assert result.exit_code == 0
+        assert "list" in result.output
+        assert "reply" in result.output
+
+    def test_analytics_help(self):
+        result = runner.invoke(app, ["analytics", "--help"])
+        assert result.exit_code == 0
+        assert "profile" in result.output
+        assert "hashtag" in result.output
+
+    def test_followers_help(self):
+        result = runner.invoke(app, ["followers", "--help"])
+        assert result.exit_code == 0
+        assert "follow" in result.output
+        assert "unfollow" in result.output
+
+    def test_user_help(self):
+        result = runner.invoke(app, ["user", "--help"])
+        assert result.exit_code == 0
+        assert "info" in result.output
+        assert "search" in result.output
+
+    def test_like_help(self):
+        result = runner.invoke(app, ["like", "--help"])
+        assert result.exit_code == 0
+        assert "post" in result.output
+        assert "undo" in result.output
+
+    def test_hashtag_help(self):
+        result = runner.invoke(app, ["hashtag", "--help"])
+        assert result.exit_code == 0
+        assert "top" in result.output
+        assert "recent" in result.output
+
+    def test_comments_add_help(self):
+        result = runner.invoke(app, ["comments", "--help"])
+        assert result.exit_code == 0
+        assert "add" in result.output
+
+
+# ── Mocked backend execution ────────────────────────────────────────
+
+
+class TestMockedExecution:
+    """Test commands with mocked backend instances."""
+
+    def _mock_dispatch(self, monkeypatch, backend_result):
+        """Patch _instantiate_backend to return a mock backend."""
+        mock_backend = MagicMock()
+        mock_backend.name = "graph_ig"
+        for method in [
+            "post_photo", "post_video", "post_reel",
+            "dm_inbox", "dm_thread", "dm_send", "dm_send_media",
+            "story_list", "story_post_photo", "story_post_video", "story_viewers",
+            "comments_list", "comments_reply", "comments_delete",
+            "analytics_profile", "analytics_post", "analytics_hashtag",
+            "followers_list", "followers_following", "follow", "unfollow",
+            "user_info", "user_search", "user_posts",
+            "like_post", "unlike_post", "comments_add",
+            "hashtag_top", "hashtag_recent",
+        ]:
+            getattr(mock_backend, method).return_value = backend_result
+
+        secrets = _setup_all_backends()
+        monkeypatch.setattr(
+            "clinstagram.commands._dispatch._get_secrets",
+            lambda ctx: secrets,
+        )
+        monkeypatch.setattr(
+            "clinstagram.commands._dispatch._instantiate_backend",
+            lambda ctx, name, feature=None: mock_backend,
+        )
+        return mock_backend
+
+    def test_post_photo_success(self, monkeypatch, tmp_path):
+        self._mock_dispatch(monkeypatch, {"id": "123", "status": "published"})
+        # stage() calls resolve_media which needs a real file for private, or URL for graph
+        monkeypatch.setattr("clinstagram.commands._dispatch.resolve_media", lambda src, needs_url: src)
+        result = runner.invoke(
+            app, ["--json", "post", "photo", "img.jpg", "--caption", "hello"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["data"]["id"] == "123"
+        assert data["backend_used"] == "graph_ig"
+
+    def test_dm_inbox_success(self, monkeypatch, tmp_path):
+        threads = [{"thread_id": "t1", "username": "alice"}]
+        self._mock_dispatch(monkeypatch, threads)
+        result = runner.invoke(
+            app, ["--json", "dm", "inbox"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["data"][0]["thread_id"] == "t1"
+
+    def test_analytics_profile_success(self, monkeypatch, tmp_path):
+        profile = {"username": "testuser", "followers_count": 1000}
+        self._mock_dispatch(monkeypatch, profile)
+        result = runner.invoke(
+            app, ["--json", "analytics", "profile"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["data"]["followers_count"] == 1000
+
+    def test_user_info_success(self, monkeypatch, tmp_path):
+        info = {"username": "alice", "full_name": "Alice Smith", "followers_count": 500}
+        self._mock_dispatch(monkeypatch, info)
+        result = runner.invoke(
+            app, ["--json", "user", "info", "alice"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["data"]["username"] == "alice"
+
+    def test_story_list_success(self, monkeypatch, tmp_path):
+        stories = [{"id": "s1", "media_type": "photo"}]
+        self._mock_dispatch(monkeypatch, stories)
+        result = runner.invoke(
+            app, ["--json", "story", "list"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["data"][0]["id"] == "s1"
+
+    def test_comments_list_success(self, monkeypatch, tmp_path):
+        comments = [{"id": "c1", "text": "great!"}]
+        self._mock_dispatch(monkeypatch, comments)
+        result = runner.invoke(
+            app, ["--json", "comments", "list", "media123"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["data"][0]["text"] == "great!"
+
+    def test_followers_list_success(self, monkeypatch, tmp_path):
+        followers = [{"username": "fan1"}, {"username": "fan2"}]
+        self._mock_dispatch(monkeypatch, followers)
+        result = runner.invoke(
+            app, ["--json", "followers", "list"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert len(data["data"]) == 2
+
+    def test_backend_error_mapped(self, monkeypatch, tmp_path):
+        """Backend exception should map to API_ERROR exit code."""
+        mock = self._mock_dispatch(monkeypatch, None)
+        mock.analytics_profile.side_effect = RuntimeError("something broke")
+        result = runner.invoke(
+            app, ["--json", "analytics", "profile"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 4  # API_ERROR
+
+    def test_rate_limit_error(self, monkeypatch, tmp_path):
+        """Rate limit errors should map to exit code 3."""
+        mock = self._mock_dispatch(monkeypatch, None)
+        mock.dm_inbox.side_effect = RuntimeError("rate limit exceeded")
+        result = runner.invoke(
+            app, ["--json", "dm", "inbox"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 3  # RATE_LIMITED
+
+    def test_post_video_success(self, monkeypatch, tmp_path):
+        """Video posting should route and return result."""
+        self._mock_dispatch(monkeypatch, {"id": "456", "status": "published"})
+        monkeypatch.setattr("clinstagram.commands._dispatch.resolve_media", lambda src, needs_url: src)
+        result = runner.invoke(
+            app, ["--json", "post", "video", "clip.mp4"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["data"]["id"] == "456"
+
+    def test_like_post_success(self, monkeypatch, tmp_path):
+        self._mock_dispatch(monkeypatch, {"media_id": "m1", "status": "liked"})
+        env = {"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"}
+        # like requires private-enabled (private-only write feature)
+        runner.invoke(app, ["config", "mode", "private-enabled"], env=env)
+        result = runner.invoke(app, ["--enable-growth-actions", "--json", "like", "post", "m1"], env=env)
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["data"]["status"] == "liked"
+
+    def test_unlike_post_success(self, monkeypatch, tmp_path):
+        self._mock_dispatch(monkeypatch, {"media_id": "m1", "status": "unliked"})
+        env = {"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"}
+        runner.invoke(app, ["config", "mode", "private-enabled"], env=env)
+        result = runner.invoke(app, ["--enable-growth-actions", "--json", "like", "undo", "m1"], env=env)
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["data"]["status"] == "unliked"
+
+    def test_comments_add_success(self, monkeypatch, tmp_path):
+        self._mock_dispatch(monkeypatch, {"id": "c99", "text": "nice post!"})
+        result = runner.invoke(
+            app, ["--enable-growth-actions", "--json", "comments", "add", "media123", "nice post!"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["data"]["text"] == "nice post!"
+
+    def test_hashtag_top_success(self, monkeypatch, tmp_path):
+        posts = [{"id": "p1", "caption": "tagged"}]
+        self._mock_dispatch(monkeypatch, posts)
+        result = runner.invoke(
+            app, ["--json", "hashtag", "top", "longevity"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["data"][0]["id"] == "p1"
+
+    def test_hashtag_recent_success(self, monkeypatch, tmp_path):
+        posts = [{"id": "p2", "caption": "fresh"}]
+        self._mock_dispatch(monkeypatch, posts)
+        result = runner.invoke(
+            app, ["--json", "hashtag", "recent", "biotech"],
+            env={"CLINSTAGRAM_CONFIG_DIR": str(tmp_path), "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["data"][0]["id"] == "p2"
+----------------------------------------------------------------------------------------------------
+END FILE: tests/test_dispatch.py
+
+FILE: tests/test_e2e.py
+----------------------------------------------------------------------------------------------------
+import json
+
+from typer.testing import CliRunner
+
+from clinstagram.cli import app
+
+runner = CliRunner()
+
+
+def test_full_workflow(tmp_path, monkeypatch):
+    """Simulate: set config -> check status -> set mode -> verify."""
+    monkeypatch.setenv("CLINSTAGRAM_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("CLINSTAGRAM_TEST_MODE", "1")
+
+    # Check initial config
+    result = runner.invoke(app, ["--json", "config", "show"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["compliance_mode"] == "hybrid-safe"
+
+    # Set mode
+    result = runner.invoke(app, ["config", "mode", "official-only"])
+    assert result.exit_code == 0
+
+    # Verify persisted
+    result = runner.invoke(app, ["--json", "config", "show"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["compliance_mode"] == "official-only"
+
+    # Auth status (no backends configured)
+    result = runner.invoke(app, ["--json", "auth", "status"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["backends"]["graph_ig"] is False
+    assert data["backends"]["graph_fb"] is False
+    assert data["backends"]["private"] is False
+
+
+def test_version_flag():
+    result = runner.invoke(app, ["--version"])
+    assert result.exit_code == 0
+    assert "0.2.0" in result.stdout
+
+
+def test_placeholder_commands():
+    """All command groups show help, not crash."""
+    for group in ["post", "dm", "story", "comments", "analytics", "followers", "user", "like", "hashtag"]:
+        result = runner.invoke(app, [group, "--help"])
+        assert result.exit_code == 0
+----------------------------------------------------------------------------------------------------
+END FILE: tests/test_e2e.py
+
+FILE: tests/test_keychain.py
+----------------------------------------------------------------------------------------------------
+from clinstagram.auth.keychain import SecretsStore
+
+
+def test_set_and_get_secret():
+    store = SecretsStore(backend="memory")
+    store.set("default", "graph_ig_token", "tok_abc123")
+    assert store.get("default", "graph_ig_token") == "tok_abc123"
+
+
+def test_get_missing_returns_none():
+    store = SecretsStore(backend="memory")
+    assert store.get("default", "nonexistent") is None
+
+
+def test_delete_secret():
+    store = SecretsStore(backend="memory")
+    store.set("default", "graph_ig_token", "tok_abc123")
+    store.delete("default", "graph_ig_token")
+    assert store.get("default", "graph_ig_token") is None
+
+
+def test_list_keys():
+    store = SecretsStore(backend="memory")
+    store.set("acct1", "graph_ig_token", "a")
+    store.set("acct1", "graph_fb_token", "b")
+    store.set("acct1", "private_session", "c")
+    keys = store.list_keys("acct1")
+    assert set(keys) == {"graph_ig_token", "graph_fb_token", "private_session"}
+
+
+def test_has_backend():
+    store = SecretsStore(backend="memory")
+    assert not store.has_backend("default", "graph_ig")
+    store.set("default", "graph_ig_token", "tok")
+    assert store.has_backend("default", "graph_ig")
+----------------------------------------------------------------------------------------------------
+END FILE: tests/test_keychain.py
+
+FILE: tests/test_media.py
+----------------------------------------------------------------------------------------------------
+"""Tests for the media staging layer."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from clinstagram.media import _is_url, cleanup_temp_files, resolve_media, _temp_files
+
+
+class TestIsUrl:
+    def test_http(self):
+        assert _is_url("http://example.com/photo.jpg") is True
+
+    def test_https(self):
+        assert _is_url("https://cdn.instagram.com/v/image.png") is True
+
+    def test_local_path(self):
+        assert _is_url("/Users/me/photos/image.jpg") is False
+
+    def test_relative_path(self):
+        assert _is_url("./photo.jpg") is False
+
+    def test_empty(self):
+        assert _is_url("") is False
+
+
+class TestResolveMediaUrlNeedsUrl:
+    def test_url_passthrough(self):
+        url = "https://cdn.example.com/media/photo.jpg"
+        result = resolve_media(url, needs_url=True)
+        assert result == url
+
+    def test_url_with_query_params(self):
+        url = "https://cdn.example.com/media/photo.jpg?token=abc&size=large"
+        result = resolve_media(url, needs_url=True)
+        assert result == url
+
+
+class TestResolveMediaUrlNeedsPath:
+    @patch("clinstagram.media.httpx.get")
+    def test_url_downloaded_to_temp(self, mock_get):
+        mock_response = MagicMock()
+        mock_response.content = b"fake image data"
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        result = resolve_media("https://example.com/photo.jpg", needs_url=False)
+
+        assert Path(result).suffix == ".jpg"
+        assert Path(result).exists()
+        assert Path(result).read_bytes() == b"fake image data"
+        mock_get.assert_called_once_with("https://example.com/photo.jpg", follow_redirects=True, timeout=30.0)
+
+        # Cleanup
+        Path(result).unlink(missing_ok=True)
+
+    @patch("clinstagram.media.httpx.get")
+    def test_url_infers_extension(self, mock_get):
+        mock_response = MagicMock()
+        mock_response.content = b"fake video data"
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        result = resolve_media("https://example.com/clip.mp4", needs_url=False)
+
+        assert Path(result).suffix == ".mp4"
+        Path(result).unlink(missing_ok=True)
+
+    @patch("clinstagram.media.httpx.get")
+    def test_url_default_extension(self, mock_get):
+        mock_response = MagicMock()
+        mock_response.content = b"data"
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        result = resolve_media("https://example.com/media", needs_url=False)
+
+        assert Path(result).suffix == ".jpg"
+        Path(result).unlink(missing_ok=True)
+
+
+class TestResolveMediaLocalPath:
+    def test_local_path_passthrough(self, tmp_path):
+        img = tmp_path / "photo.jpg"
+        img.write_bytes(b"image data")
+
+        result = resolve_media(str(img), needs_url=False)
+        assert result == str(img)
+
+    def test_local_path_not_found(self):
+        with pytest.raises(FileNotFoundError, match="Media file not found"):
+            resolve_media("/nonexistent/path/photo.jpg", needs_url=False)
+
+    def test_local_path_needs_url_raises(self, tmp_path):
+        img = tmp_path / "photo.jpg"
+        img.write_bytes(b"image data")
+
+        with pytest.raises(ValueError, match="Graph API requires a public URL"):
+            resolve_media(str(img), needs_url=True)
+
+
+class TestCleanupTempFiles:
+    @patch("clinstagram.media.httpx.get")
+    def test_cleanup_removes_files(self, mock_get):
+        mock_response = MagicMock()
+        mock_response.content = b"data"
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        result = resolve_media("https://example.com/photo.jpg", needs_url=False)
+        temp_path = Path(result)
+        assert temp_path.exists()
+
+        cleanup_temp_files()
+
+        assert not temp_path.exists()
+        assert len(_temp_files) == 0
+
+    def test_cleanup_on_empty_is_safe(self):
+        # Should not raise even when no temp files exist
+        _temp_files.clear()
+        cleanup_temp_files()
+        assert len(_temp_files) == 0
+----------------------------------------------------------------------------------------------------
+END FILE: tests/test_media.py
+
+FILE: tests/test_models.py
+----------------------------------------------------------------------------------------------------
+import json
+from clinstagram.models import CLIResponse, CLIError, ExitCode
+
+
+def test_success_response():
+    r = CLIResponse(data={"thread_id": "123"}, backend_used="graph_fb")
+    assert r.exit_code == ExitCode.SUCCESS
+    d = json.loads(r.to_json())
+    assert d["data"]["thread_id"] == "123"
+    assert d["backend_used"] == "graph_fb"
+
+
+def test_error_response():
+    e = CLIError(
+        exit_code=ExitCode.AUTH_ERROR,
+        error="session_expired",
+        remediation="Run: clinstagram auth login",
+    )
+    d = json.loads(e.to_json())
+    assert d["exit_code"] == 2
+    assert d["remediation"] == "Run: clinstagram auth login"
+
+
+def test_all_exit_codes():
+    assert ExitCode.SUCCESS == 0
+    assert ExitCode.USER_ERROR == 1
+    assert ExitCode.AUTH_ERROR == 2
+    assert ExitCode.RATE_LIMITED == 3
+    assert ExitCode.API_ERROR == 4
+    assert ExitCode.CHALLENGE_REQUIRED == 5
+    assert ExitCode.POLICY_BLOCKED == 6
+    assert ExitCode.CAPABILITY_UNAVAILABLE == 7
+----------------------------------------------------------------------------------------------------
+END FILE: tests/test_models.py
+
+FILE: tests/test_private_login.py
+----------------------------------------------------------------------------------------------------
+"""Tests for the resilient private API login flow."""
+from __future__ import annotations
+
+import json
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from clinstagram.auth.private_login import (
+    LoginConfig,
+    LoginResult,
+    _configure_client,
+    _extract_uuids,
+    _validate_session,
+    login_private,
+)
+
+
+class TestExtractUuids:
+    def test_extracts_known_keys(self):
+        settings = {
+            "uuid": "abc-123",
+            "phone_id": "def-456",
+            "device_id": "ghi-789",
+            "advertising_id": "jkl-012",
+            "device_settings": {"model": "Pixel 7"},
+            "sessionid": "ignored",
+        }
+        uuids = _extract_uuids(settings)
+        assert uuids["uuid"] == "abc-123"
+        assert uuids["phone_id"] == "def-456"
+        assert uuids["device_id"] == "ghi-789"
+        assert uuids["advertising_id"] == "jkl-012"
+        assert uuids["device_settings"]["model"] == "Pixel 7"
+        assert "sessionid" not in uuids
+
+    def test_empty_settings(self):
+        assert _extract_uuids({}) == {}
+
+    def test_partial_settings(self):
+        uuids = _extract_uuids({"uuid": "abc"})
+        assert uuids == {"uuid": "abc"}
+
+
+class TestConfigureClient:
+    def test_sets_proxy(self):
+        client = MagicMock()
+        config = LoginConfig(username="u", password="p", proxy="http://proxy:8080")
+        _configure_client(client, config)
+        client.set_proxy.assert_called_once_with("http://proxy:8080")
+
+    def test_sets_delay_range(self):
+        client = MagicMock()
+        config = LoginConfig(username="u", password="p", delay_range=[2, 5])
+        _configure_client(client, config)
+        assert client.delay_range == [2, 5]
+
+    def test_sets_totp_seed(self):
+        client = MagicMock()
+        config = LoginConfig(username="u", password="p", totp_seed="JBSWY3DPEHPK3PXP")
+        _configure_client(client, config)
+        assert client.totp_seed == "JBSWY3DPEHPK3PXP"
+
+    def test_no_proxy_no_set(self):
+        client = MagicMock()
+        config = LoginConfig(username="u", password="p")
+        _configure_client(client, config)
+        client.set_proxy.assert_not_called()
+
+    def test_challenge_handler_assigned(self):
+        client = MagicMock()
+        handler = MagicMock()
+        config = LoginConfig(username="u", password="p", challenge_handler=handler)
+        _configure_client(client, config)
+        assert client.challenge_code_handler is handler
+
+    def test_locale_and_timezone(self):
+        client = MagicMock()
+        config = LoginConfig(username="u", password="p", locale="en_US", timezone="-18000")
+        _configure_client(client, config)
+        client.set_locale.assert_called_once_with("en_US")
+        client.set_timezone_offset.assert_called_once_with(-18000)
+
+
+class TestValidateSession:
+    def test_valid(self):
+        client = MagicMock()
+        client.get_timeline_feed.return_value = {"items": []}
+        assert _validate_session(client) is True
+
+    def test_invalid(self):
+        client = MagicMock()
+        client.account_info.side_effect = RuntimeError("401")
+        assert _validate_session(client) is False
+
+
+class TestLoginPrivate:
+    """Test login_private with fully mocked instagrapi."""
+
+    @patch("instagrapi.Client")
+    @patch("clinstagram.auth.private_login._validate_session", return_value=True)
+    def test_fresh_login_success(self, mock_validate, MockClient):
+        cl = MagicMock()
+        cl.get_settings.return_value = {"uuid": "abc", "sessionid": "sess123"}
+        MockClient.return_value = cl
+
+        config = LoginConfig(username="testuser", password="pass123")
+        result = login_private(config)
+
+        assert result.success is True
+        assert result.username == "testuser"
+        assert result.session_json != ""
+        cl.login.assert_called_once_with("testuser", "pass123")
+
+    @patch("instagrapi.Client")
+    @patch("clinstagram.auth.private_login._validate_session", return_value=True)
+    def test_session_restore_success(self, mock_validate, MockClient):
+        cl = MagicMock()
+        cl.get_settings.return_value = {"uuid": "abc", "sessionid": "sess-new"}
+        MockClient.return_value = cl
+
+        config = LoginConfig(username="testuser", password="pass123")
+        existing = json.dumps({"uuid": "abc", "sessionid": "sess-old"})
+        result = login_private(config, existing_session=existing)
+
+        assert result.success is True
+        cl.set_settings.assert_called_once()
+        cl.login.assert_called_once_with("testuser", "pass123")
+
+    @patch("instagrapi.Client")
+    @patch("clinstagram.auth.private_login._validate_session")
+    def test_session_expired_relogin(self, mock_validate, MockClient):
+        """When session is invalid, should re-login with preserved UUIDs."""
+        cl1 = MagicMock()
+        cl1.get_settings.return_value = {
+            "uuid": "device-uuid",
+            "phone_id": "phone-123",
+            "sessionid": "old-sess",
+        }
+
+        cl2 = MagicMock()
+        cl2.get_settings.return_value = {"uuid": "device-uuid", "sessionid": "new-sess"}
+
+        MockClient.side_effect = [cl1, cl2]
+        # First validate fails (expired), second succeeds (after relogin)
+        mock_validate.side_effect = [False, True]
+
+        config = LoginConfig(username="testuser", password="pass123")
+        existing = json.dumps({"uuid": "device-uuid", "sessionid": "old-sess"})
+        result = login_private(config, existing_session=existing)
+
+        assert result.success is True
+        assert result.relogin is True
+        # Second client should have had set_uuids called
+        cl2.set_uuids.assert_called_once()
+        uuids = cl2.set_uuids.call_args[0][0]
+        assert uuids["uuid"] == "device-uuid"
+        assert uuids["phone_id"] == "phone-123"
+
+    @patch("instagrapi.Client")
+    def test_fresh_login_challenge_required(self, MockClient):
+        from instagrapi.exceptions import ChallengeRequired
+
+        cl = MagicMock()
+        cl.login.side_effect = ChallengeRequired()
+        MockClient.return_value = cl
+
+        config = LoginConfig(username="testuser", password="pass123")
+        result = login_private(config)
+
+        assert result.success is False
+        assert result.challenge_required is True
+
+    @patch("instagrapi.Client")
+    def test_fresh_login_2fa_no_seed(self, MockClient):
+        from instagrapi.exceptions import TwoFactorRequired
+
+        cl = MagicMock()
+        cl.login.side_effect = TwoFactorRequired()
+        MockClient.return_value = cl
+
+        config = LoginConfig(username="testuser", password="pass123")
+        result = login_private(config)
+
+        assert result.success is False
+        assert "2FA required" in result.error
+
+    @patch("instagrapi.Client")
+    @patch("clinstagram.auth.private_login._validate_session", return_value=True)
+    def test_fresh_login_2fa_with_seed(self, mock_validate, MockClient):
+        from instagrapi.exceptions import TwoFactorRequired
+
+        cl = MagicMock()
+        cl.login.side_effect = TwoFactorRequired()
+        cl.get_settings.return_value = {"uuid": "abc", "sessionid": "sess"}
+        MockClient.return_value = cl
+
+        with patch("instagrapi.mixins.totp.TOTPMixin") as MockTOTP:
+            MockTOTP.totp_generate_code.return_value = "123456"
+            config = LoginConfig(username="testuser", password="pass123", totp_seed="SEED")
+            result = login_private(config)
+
+        assert result.success is True
+        cl.two_factor_login.assert_called_once_with("123456")
+
+    @patch("instagrapi.Client")
+    def test_fresh_login_generic_error(self, MockClient):
+        cl = MagicMock()
+        cl.login.side_effect = ConnectionError("Network down")
+        MockClient.return_value = cl
+
+        config = LoginConfig(username="testuser", password="pass123")
+        result = login_private(config)
+
+        assert result.success is False
+        assert "Network down" in result.error
+
+    @patch("instagrapi.Client")
+    @patch("clinstagram.auth.private_login._validate_session", return_value=False)
+    def test_fresh_login_validation_fails(self, mock_validate, MockClient):
+        cl = MagicMock()
+        cl.get_settings.return_value = {"sessionid": "s"}
+        MockClient.return_value = cl
+
+        config = LoginConfig(username="testuser", password="pass123")
+        result = login_private(config)
+
+        assert result.success is False
+        assert "validation failed" in result.error
+
+    @patch("instagrapi.Client")
+    @patch("clinstagram.auth.private_login._validate_session", return_value=True)
+    def test_proxy_passed_through(self, mock_validate, MockClient):
+        cl = MagicMock()
+        cl.get_settings.return_value = {"uuid": "abc"}
+        MockClient.return_value = cl
+
+        config = LoginConfig(username="u", password="p", proxy="socks5://1.2.3.4:1080")
+        login_private(config)
+
+        cl.set_proxy.assert_called_with("socks5://1.2.3.4:1080")
+
+
+class TestLoginResult:
+    def test_default_values(self):
+        r = LoginResult(success=False)
+        assert r.username == ""
+        assert r.session_json == ""
+        assert r.error == ""
+        assert r.remediation == ""
+        assert r.challenge_required is False
+        assert r.relogin is False
+
+
+class TestBadPasswordHandling:
+    """Verify BadPassword is caught explicitly (not string-matched)."""
+
+    @patch("instagrapi.Client")
+    def test_bad_password_no_email_hint(self, MockClient):
+        from instagrapi.exceptions import BadPassword
+
+        cl = MagicMock()
+        cl.login.side_effect = BadPassword()
+        MockClient.return_value = cl
+
+        config = LoginConfig(username="testuser", password="wrong")
+        result = login_private(config)
+
+        assert result.success is False
+        assert "rejected the login" in result.error
+        assert "email" in result.remediation  # hint to try email
+        assert "IP" not in result.error  # no misleading IP message
+
+    @patch("instagrapi.Client")
+    def test_bad_password_with_email_no_extra_hint(self, MockClient):
+        from instagrapi.exceptions import BadPassword
+
+        cl = MagicMock()
+        cl.login.side_effect = BadPassword()
+        MockClient.return_value = cl
+
+        config = LoginConfig(username="user@example.com", password="wrong")
+        result = login_private(config)
+
+        assert result.success is False
+        # Should NOT suggest trying email when already using email
+        assert "retry with that exact email" not in result.remediation
+
+    @patch("instagrapi.Client")
+    def test_sentry_block(self, MockClient):
+        from instagrapi.exceptions import SentryBlock
+
+        cl = MagicMock()
+        cl.login.side_effect = SentryBlock()
+        MockClient.return_value = cl
+
+        config = LoginConfig(username="testuser", password="pass")
+        result = login_private(config)
+
+        assert result.success is False
+        assert "suspicious" in result.error
+        assert result.remediation != ""
+
+    @patch("instagrapi.Client")
+    def test_please_wait(self, MockClient):
+        from instagrapi.exceptions import PleaseWaitFewMinutes
+
+        cl = MagicMock()
+        cl.login.side_effect = PleaseWaitFewMinutes()
+        MockClient.return_value = cl
+
+        config = LoginConfig(username="testuser", password="pass")
+        result = login_private(config)
+
+        assert result.success is False
+        assert "wait" in result.error.lower()
+
+
+class TestDeviceFingerprint:
+    """Verify modern device settings are applied via set_device()."""
+
+    def test_configure_uses_set_device(self):
+        from clinstagram.auth.private_login import DEFAULT_DEVICE_SETTINGS
+
+        client = MagicMock()
+        config = LoginConfig(username="u", password="p")
+        _configure_client(client, config)
+        client.set_device.assert_called_once()
+        device_arg = client.set_device.call_args[0][0]
+        assert device_arg["manufacturer"] == "Google"
+        assert device_arg["model"] == "Pixel 7"
+        assert device_arg["android_version"] == 33
+
+    def test_configure_rebuilds_user_agent(self):
+        client = MagicMock()
+        config = LoginConfig(username="u", password="p")
+        _configure_client(client, config)
+        client.set_user_agent.assert_called_once()
+
+    def test_custom_device_overrides_defaults(self):
+        client = MagicMock()
+        config = LoginConfig(username="u", password="p", device_settings={"model": "Galaxy S24"})
+        _configure_client(client, config)
+        device_arg = client.set_device.call_args[0][0]
+        assert device_arg["model"] == "Galaxy S24"
+        assert device_arg["manufacturer"] == "Google"  # default preserved
+
+
+class TestLoginCommand:
+    """Test the CLI login command integration."""
+
+    @patch("clinstagram.auth.private_login.login_private")
+    def test_login_command_success(self, mock_login):
+        from typer.testing import CliRunner
+
+        from clinstagram.cli import app
+
+        runner = CliRunner()
+        mock_login.return_value = LoginResult(
+            success=True,
+            username="testuser",
+            session_json='{"sessionid": "abc"}',
+        )
+
+        result = runner.invoke(
+            app,
+            ["--json", "auth", "login", "--username", "testuser", "--password", "pass123"],
+            env={"CLINSTAGRAM_CONFIG_DIR": "/tmp/clinstagram-test", "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["status"] == "success"
+        assert data["username"] == "testuser"
+        assert data["backend"] == "private"
+
+    @patch("clinstagram.auth.private_login.login_private")
+    def test_login_command_failure(self, mock_login):
+        from typer.testing import CliRunner
+
+        from clinstagram.cli import app
+
+        runner = CliRunner()
+        mock_login.return_value = LoginResult(
+            success=False,
+            username="testuser",
+            error="Bad password",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--json", "auth", "login", "--username", "testuser", "--password", "wrong"],
+            env={"CLINSTAGRAM_CONFIG_DIR": "/tmp/clinstagram-test", "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+
+        assert result.exit_code == 2
+
+    @patch("clinstagram.auth.private_login.login_private")
+    def test_login_stores_session(self, mock_login):
+        from typer.testing import CliRunner
+
+        from clinstagram.cli import app
+
+        runner = CliRunner()
+        mock_login.return_value = LoginResult(
+            success=True,
+            username="testuser",
+            session_json='{"sessionid": "stored-session"}',
+        )
+
+        result = runner.invoke(
+            app,
+            ["--json", "auth", "login", "--username", "testuser", "--password", "pass123"],
+            env={"CLINSTAGRAM_CONFIG_DIR": "/tmp/clinstagram-test", "CLINSTAGRAM_TEST_MODE": "1"},
+        )
+
+        assert result.exit_code == 0
+        # Verify login_private was called
+        mock_login.assert_called_once()
+----------------------------------------------------------------------------------------------------
+END FILE: tests/test_private_login.py
+
+FILE: tests/test_router.py
+----------------------------------------------------------------------------------------------------
+from clinstagram.backends.router import Router
+from clinstagram.backends.capabilities import Feature
+from clinstagram.config import ComplianceMode
+from clinstagram.auth.keychain import SecretsStore
+
+
+def make_router(mode=ComplianceMode.HYBRID_SAFE, backends=None):
+    secrets = SecretsStore(backend="memory")
+    if backends:
+        for b in backends:
+            if b == "graph_ig":
+                secrets.set("default", "graph_ig_token", "tok")
+            elif b == "graph_fb":
+                secrets.set("default", "graph_fb_token", "tok")
+            elif b == "private":
+                secrets.set("default", "private_session", "sess")
+    return Router(account="default", compliance_mode=mode, secrets=secrets)
+
+
+def test_routes_post_to_graph_ig():
+    r = make_router(backends=["graph_ig"])
+    backend = r.route(Feature.POST_PHOTO)
+    assert backend == "graph_ig"
+
+
+def test_routes_dm_to_graph_fb():
+    r = make_router(backends=["graph_fb"])
+    backend = r.route(Feature.DM_INBOX)
+    assert backend == "graph_fb"
+
+
+def test_routes_dm_to_private_when_no_graph_fb():
+    r = make_router(mode=ComplianceMode.PRIVATE_ENABLED, backends=["private"])
+    backend = r.route(Feature.DM_INBOX)
+    assert backend == "private"
+
+
+def test_official_only_blocks_private():
+    r = make_router(mode=ComplianceMode.OFFICIAL_ONLY, backends=["private"])
+    backend = r.route(Feature.DM_INBOX)
+    assert backend is None
+
+
+def test_hybrid_safe_allows_private_readonly():
+    r = make_router(mode=ComplianceMode.HYBRID_SAFE, backends=["private"])
+    backend = r.route(Feature.DM_INBOX)
+    assert backend == "private"
+
+
+def test_hybrid_safe_blocks_private_write():
+    r = make_router(mode=ComplianceMode.HYBRID_SAFE, backends=["private"])
+    backend = r.route(Feature.DM_COLD_SEND)
+    assert backend is None
+
+
+def test_prefers_graph_over_private():
+    r = make_router(mode=ComplianceMode.PRIVATE_ENABLED, backends=["graph_fb", "private"])
+    backend = r.route(Feature.DM_INBOX)
+    assert backend == "graph_fb"
+
+
+def test_no_backends_returns_none():
+    r = make_router(backends=[])
+    backend = r.route(Feature.POST_PHOTO)
+    assert backend is None
+
+
+def test_follow_blocked_by_default():
+    r = make_router(mode=ComplianceMode.HYBRID_SAFE, backends=["private"])
+    backend = r.route(Feature.FOLLOW)
+    assert backend is None
+----------------------------------------------------------------------------------------------------
+END FILE: tests/test_router.py
+
