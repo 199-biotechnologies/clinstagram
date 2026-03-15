@@ -151,6 +151,25 @@ def login(
 
     result = login_private(config, existing_session=existing_session)
 
+    # If session expired and no password was provided, prompt and retry
+    if not result.success and "no password provided" in (result.error or "").lower() and not effective_password:
+        if ctx.obj["json"]:
+            # In JSON mode, can't prompt interactively — just report the error
+            pass
+        else:
+            console.print("[yellow]Session expired.[/yellow] Password required to re-authenticate.")
+            effective_password = typer.prompt("Instagram password", hide_input=True)
+            config = LoginConfig(
+                username=username,
+                password=effective_password,
+                totp_seed=totp_seed,
+                proxy=effective_proxy,
+                locale=locale,
+                timezone=timezone,
+                delay_range=[delay_min, delay_max],
+            )
+            result = login_private(config, existing_session=existing_session)
+
     if result.success:
         # Store session in keychain
         secrets.set(account, "private_session", result.session_json)
