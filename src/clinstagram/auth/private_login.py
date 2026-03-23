@@ -16,17 +16,37 @@ logger = logging.getLogger(__name__)
 # Default action delays (seconds) — reduces detection risk
 DEFAULT_DELAY_RANGE = [1, 3]
 
-# Modern device fingerprint — replaces instagrapi's flagged OnePlus 6T / Android 8
-DEFAULT_DEVICE_SETTINGS = {
-    "android_version": 33,
-    "android_release": "13.0.0",
-    "dpi": "420dpi",
-    "resolution": "1080x2400",
-    "manufacturer": "Google",
-    "device": "panther",
-    "model": "Pixel 7",
-    "cpu": "arm64-v8a",
-}
+# Device pool — a range of modern devices to derive per-account fingerprints from.
+# Using a single static fingerprint across all installs enables mass-flagging.
+_DEVICE_POOL = [
+    {"android_version": 33, "android_release": "13.0.0", "dpi": "420dpi", "resolution": "1080x2400", "manufacturer": "Google", "device": "panther", "model": "Pixel 7", "cpu": "arm64-v8a"},
+    {"android_version": 34, "android_release": "14.0.0", "dpi": "420dpi", "resolution": "1080x2400", "manufacturer": "Google", "device": "husky", "model": "Pixel 8 Pro", "cpu": "arm64-v8a"},
+    {"android_version": 33, "android_release": "13.0.0", "dpi": "440dpi", "resolution": "1080x2340", "manufacturer": "samsung", "device": "dm1q", "model": "SM-S911B", "cpu": "arm64-v8a"},
+    {"android_version": 34, "android_release": "14.0.0", "dpi": "420dpi", "resolution": "1080x2400", "manufacturer": "Google", "device": "cheetah", "model": "Pixel 7 Pro", "cpu": "arm64-v8a"},
+    {"android_version": 33, "android_release": "13.0.0", "dpi": "420dpi", "resolution": "1080x2340", "manufacturer": "OnePlus", "device": "CPH2449", "model": "CPH2449", "cpu": "arm64-v8a"},
+]
+
+
+def _generate_device_for_account(account_name: str) -> dict[str, Any]:
+    """Generate a deterministic device fingerprint for a given account.
+
+    Uses HMAC of the account name with a machine-stable seed so that:
+    - The same account always gets the same device on the same machine
+    - Different accounts get different devices
+    - Different machines produce different fingerprints
+    """
+    import hashlib
+    import hmac
+    import platform
+    import uuid
+
+    # Machine-stable seed: combine hostname + platform for determinism
+    machine_seed = f"{platform.node()}:{platform.machine()}:{platform.system()}"
+    digest = hmac.new(
+        machine_seed.encode(), account_name.encode(), hashlib.sha256
+    ).hexdigest()
+    index = int(digest, 16) % len(_DEVICE_POOL)
+    return dict(_DEVICE_POOL[index])
 
 # Locale → (country_code, country) for common Instagram locales
 _LOCALE_MAP = {
@@ -116,7 +136,9 @@ def _configure_client(client: Any, config: LoginConfig) -> None:
     client.delay_range = config.delay_range
 
     # Set device BEFORE login — uses set_device() so user agent is rebuilt
-    device = {**DEFAULT_DEVICE_SETTINGS, **(config.device_settings or {})}
+    # Per-account deterministic fingerprint prevents mass-flagging
+    base_device = _generate_device_for_account(config.username)
+    device = {**base_device, **(config.device_settings or {})}
     client.set_device(device)
 
     # Resolve locale — auto-detect if not provided

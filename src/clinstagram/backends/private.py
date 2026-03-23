@@ -117,6 +117,9 @@ class PrivateBackend(Backend):
             An already-authenticated instagrapi Client instance.
         """
         self._cl = client
+        # In-memory cache: username → (user_pk_str, user_object)
+        # Eliminates redundant user_info_by_username API calls within a session.
+        self._user_cache: dict[str, tuple[str, Any]] = {}
 
     @property
     def name(self) -> str:
@@ -127,11 +130,28 @@ class PrivateBackend(Backend):
     # ------------------------------------------------------------------
 
     def _user_id_from_username(self, username: str) -> str:
+        cached = self._user_cache.get(username)
+        if cached:
+            return cached[0]
         try:
             info = self._cl.user_info_by_username(username)
-            return str(info.pk)
+            pk = str(info.pk)
+            self._user_cache[username] = (pk, info)
+            return pk
         except Exception as exc:
             raise _wrap_error("user_id_from_username", exc)
+
+    def _cached_user_info(self, username: str) -> Any:
+        """Get user info object, using cache to avoid redundant API calls."""
+        cached = self._user_cache.get(username)
+        if cached:
+            return cached[1]
+        try:
+            info = self._cl.user_info_by_username(username)
+            self._user_cache[username] = (str(info.pk), info)
+            return info
+        except Exception as exc:
+            raise _wrap_error("user_info", exc)
 
     # ------------------------------------------------------------------
     # Posting
@@ -261,9 +281,9 @@ class PrivateBackend(Backend):
 
                 mention_objects = []
                 for m in mentions:
-                    uid = int(self._user_id_from_username(m))
+                    user_info = self._cached_user_info(m)
                     mention_objects.append(
-                        StoryMention(user=self._cl.user_info(uid), x=0.5, y=0.5, width=0.3, height=0.05)
+                        StoryMention(user=user_info, x=0.5, y=0.5, width=0.3, height=0.05)
                     )
                 kwargs["mentions"] = mention_objects
             if link:
@@ -287,9 +307,9 @@ class PrivateBackend(Backend):
 
                 mention_objects = []
                 for m in mentions:
-                    uid = int(self._user_id_from_username(m))
+                    user_info = self._cached_user_info(m)
                     mention_objects.append(
-                        StoryMention(user=self._cl.user_info(uid), x=0.5, y=0.5, width=0.3, height=0.05)
+                        StoryMention(user=user_info, x=0.5, y=0.5, width=0.3, height=0.05)
                     )
                 kwargs["mentions"] = mention_objects
             if link:
@@ -474,7 +494,7 @@ class PrivateBackend(Backend):
     def comments_add(self, media_id: str, text: str) -> dict:
         try:
             result = self._cl.media_comment(media_id, text)
-            return _comment_to_dict(result)
+            return _comment_to_dict(result, media_id)
         except Exception as exc:
             raise _wrap_error("comments_add", exc)
 

@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import random
+import time
 from typing import Any, Callable
 
 import typer
@@ -38,10 +40,43 @@ def _get_router(ctx: typer.Context) -> Router:
     )
 
 
-def _instantiate_backend(ctx: typer.Context, backend_name: str, feature: Feature) -> Backend:
-    """Create the appropriate Backend instance from stored credentials."""
+def _get_http_client(ctx: typer.Context) -> "httpx.Client":
+    """Return a shared httpx.Client for Graph API calls, creating one if needed."""
     import httpx
 
+    if "_http_client" not in ctx.obj:
+        ctx.obj["_http_client"] = httpx.Client(timeout=30.0)
+    return ctx.obj["_http_client"]
+
+
+def _close_http_client(ctx: typer.Context) -> None:
+    """Close the shared httpx.Client if one was created."""
+    client = ctx.obj.pop("_http_client", None)
+    if client:
+        client.close()
+
+
+def _apply_jitter_delay(ctx: typer.Context, feature: Feature) -> None:
+    """Apply a randomized delay before mutating actions to reduce detection risk."""
+    from clinstagram.backends.capabilities import READ_ONLY_FEATURES
+
+    if feature in READ_ONLY_FEATURES:
+        return
+
+    config = ctx.obj["config"]
+    rl = config.rate_limits
+    if not rl.request_jitter:
+        return
+
+    lo = rl.request_delay_min
+    hi = rl.request_delay_max
+    # Add ±20% variance to avoid constant patterns
+    jitter = random.uniform(lo * 0.8, hi * 1.2)
+    time.sleep(jitter)
+
+
+def _instantiate_backend(ctx: typer.Context, backend_name: str, feature: Feature) -> Backend:
+    """Create the appropriate Backend instance from stored credentials."""
     secrets = _get_secrets(ctx)
     account = ctx.obj["account"]
 
@@ -49,13 +84,13 @@ def _instantiate_backend(ctx: typer.Context, backend_name: str, feature: Feature
         from clinstagram.backends.graph import GraphBackend
 
         token = secrets.get(account, "graph_ig_token")
-        return GraphBackend(token=token, login_type="ig", client=httpx.Client())
+        return GraphBackend(token=token, login_type="ig", client=_get_http_client(ctx))
 
     if backend_name == "graph_fb":
         from clinstagram.backends.graph import GraphBackend
 
         token = secrets.get(account, "graph_fb_token")
-        return GraphBackend(token=token, login_type="fb", client=httpx.Client())
+        return GraphBackend(token=token, login_type="fb", client=_get_http_client(ctx))
 
     if backend_name == "private":
         from instagrapi import Client
@@ -71,7 +106,7 @@ def _instantiate_backend(ctx: typer.Context, backend_name: str, feature: Feature
         proxy = ctx.obj.get("proxy")
         if proxy:
             cl.set_proxy(proxy)
-            
+
         from clinstagram.backends.capabilities import READ_ONLY_FEATURES
         config = ctx.obj["config"]
         rl = config.rate_limits
@@ -79,7 +114,7 @@ def _instantiate_backend(ctx: typer.Context, backend_name: str, feature: Feature
             cl.delay_range = [0, rl.request_delay_min]
         else:
             cl.delay_range = [rl.request_delay_min, rl.request_delay_max]
-            
+
         return PrivateBackend(client=cl)
 
     raise ValueError(f"Unknown backend: {backend_name}")
@@ -282,6 +317,8 @@ def dispatch(
         return
 
     try:
+        # Apply jitter delay for write operations to reduce detection risk
+        _apply_jitter_delay(ctx, feature)
         # Store backend_name in context for stage() calls in action lambdas
         ctx.obj["_backend_name"] = backend_name
         result = action(backend)
@@ -319,3 +356,4 @@ def dispatch(
             ))
     finally:
         cleanup_temp_files()
+        _close_http_client(ctx)

@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import json as _json
+import re
 from typing import Any
 
 import httpx
 
 from clinstagram.backends.base import Backend
+
+# Instagram usernames: 1-30 chars, alphanumeric + dots + underscores
+_USERNAME_RE = re.compile(r"^[a-zA-Z0-9._]{1,30}$")
 
 
 class GraphAPIError(Exception):
@@ -72,20 +76,30 @@ class GraphBackend(Backend):
     def _url(self, path: str) -> str:
         return f"{self._base}/{path.lstrip('/')}"
 
+    def _headers(self) -> dict[str, str]:
+        return {"Authorization": f"Bearer {self._token}"}
+
     def _params(self, extra: dict[str, Any] | None = None) -> dict[str, Any]:
-        p: dict[str, Any] = {"access_token": self._token}
+        p: dict[str, Any] = {}
         if extra:
             p.update(extra)
         return p
 
     def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
-        return _check(self._client.get(self._url(path), params=self._params(params)))
+        return _check(self._client.get(self._url(path), params=self._params(params), headers=self._headers()))
 
     def _post(self, path: str, data: dict[str, Any] | None = None) -> Any:
-        return _check(self._client.post(self._url(path), data=self._params(data)))
+        return _check(self._client.post(self._url(path), data=self._params(data), headers=self._headers()))
 
     def _delete(self, path: str) -> Any:
-        return _check(self._client.delete(self._url(path), params=self._params()))
+        return _check(self._client.delete(self._url(path), params=self._params(), headers=self._headers()))
+
+    @staticmethod
+    def _validate_username(username: str) -> str:
+        """Validate an Instagram username before interpolating into Graph queries."""
+        if not _USERNAME_RE.match(username):
+            raise ValueError(f"Invalid Instagram username: {username!r}")
+        return username
 
     def _normalize_user(self, data: dict[str, Any]) -> dict[str, Any]:
         return {
@@ -463,6 +477,7 @@ class GraphBackend(Backend):
     # ------------------------------------------------------------------
 
     def user_info(self, username: str) -> dict:
+        self._validate_username(username)
         me = self._me_id()
         params = {
             "fields": f"business_discovery.fields(id,username,name,biography,followers_count,follows_count,media_count,profile_picture_url).username({username})",
@@ -483,6 +498,7 @@ class GraphBackend(Backend):
             return []
 
     def user_posts(self, username: str, limit: int = 20) -> list[dict]:
+        self._validate_username(username)
         me = self._me_id()
         params = {
             "fields": f"business_discovery.fields(media.limit({limit}){{id,caption,media_type,media_url,timestamp,like_count,comments_count}}).username({username})",

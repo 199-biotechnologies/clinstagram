@@ -318,19 +318,28 @@ class TestBadPasswordHandling:
 
 
 class TestDeviceFingerprint:
-    """Verify modern device settings are applied via set_device()."""
+    """Verify per-account device fingerprinting via set_device()."""
 
     def test_configure_uses_set_device(self):
-        from clinstagram.auth.private_login import DEFAULT_DEVICE_SETTINGS
-
         client = MagicMock()
         config = LoginConfig(username="u", password="p")
         _configure_client(client, config)
         client.set_device.assert_called_once()
         device_arg = client.set_device.call_args[0][0]
-        assert device_arg["manufacturer"] == "Google"
-        assert device_arg["model"] == "Pixel 7"
-        assert device_arg["android_version"] == 33
+        # Must have key device fields from the pool
+        assert "manufacturer" in device_arg
+        assert "model" in device_arg
+        assert "android_version" in device_arg
+
+    def test_deterministic_per_account_fingerprint(self):
+        """Same account always gets the same device; different accounts may differ."""
+        from clinstagram.auth.private_login import _generate_device_for_account
+
+        d1 = _generate_device_for_account("account_alpha")
+        d2 = _generate_device_for_account("account_alpha")
+        assert d1 == d2  # deterministic
+        assert isinstance(d1, dict)
+        assert "model" in d1
 
     def test_configure_rebuilds_user_agent(self):
         client = MagicMock()

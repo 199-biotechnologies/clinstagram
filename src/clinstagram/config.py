@@ -5,7 +5,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -42,7 +42,15 @@ class MediaStaging(BaseModel):
     cleanup_after_publish: bool = True
 
 
+# Keys that `config set` is allowed to modify directly.
+WRITABLE_CONFIG_KEYS = frozenset({
+    "default_account", "compliance_mode", "preferred_backend", "proxy",
+})
+
+
 class GlobalConfig(BaseModel):
+    model_config = ConfigDict(validate_assignment=True)
+
     default_account: str = "default"
     compliance_mode: ComplianceMode = ComplianceMode.HYBRID_SAFE
     preferred_backend: BackendType = BackendType.AUTO

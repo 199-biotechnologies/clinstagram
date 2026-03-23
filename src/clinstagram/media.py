@@ -52,17 +52,28 @@ def resolve_media(source: str, needs_url: bool) -> str:
         if needs_url:
             return source
 
-        # Download to a temp file for the private backend
-        response = httpx.get(source, follow_redirects=True, timeout=30.0)
-        response.raise_for_status()
-        if len(response.content) > MAX_DOWNLOAD_BYTES:
-            raise ValueError(f"Media too large: {len(response.content)} bytes (max {MAX_DOWNLOAD_BYTES})")
-
-        # Infer extension from URL path
+        # Download to a temp file for the private backend using streaming
+        # to avoid buffering 100MB+ videos entirely in memory.
         parsed = urlparse(source)
         suffix = Path(parsed.path).suffix or ".jpg"
         tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
-        tmp.write(response.content)
+        downloaded = 0
+        try:
+            with httpx.stream("GET", source, follow_redirects=True, timeout=30.0) as response:
+                response.raise_for_status()
+                # Early rejection via Content-Length if available
+                content_length = response.headers.get("content-length")
+                if content_length and int(content_length) > MAX_DOWNLOAD_BYTES:
+                    raise ValueError(f"Media too large: {content_length} bytes (max {MAX_DOWNLOAD_BYTES})")
+                for chunk in response.iter_bytes(chunk_size=65536):
+                    downloaded += len(chunk)
+                    if downloaded > MAX_DOWNLOAD_BYTES:
+                        raise ValueError(f"Media too large: >{downloaded} bytes (max {MAX_DOWNLOAD_BYTES})")
+                    tmp.write(chunk)
+        except Exception:
+            tmp.close()
+            Path(tmp.name).unlink(missing_ok=True)
+            raise
         tmp.close()
         path = Path(tmp.name)
         _temp_files.append(path)

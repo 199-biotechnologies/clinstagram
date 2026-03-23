@@ -39,42 +39,45 @@ class TestResolveMediaUrlNeedsUrl:
         assert result == url
 
 
+def _mock_stream(data: bytes, headers: dict | None = None):
+    """Create a mock for httpx.stream() context manager that yields data chunks."""
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
+    mock_response.headers = headers or {}
+    mock_response.iter_bytes = MagicMock(return_value=iter([data]))
+    cm = MagicMock()
+    cm.__enter__ = MagicMock(return_value=mock_response)
+    cm.__exit__ = MagicMock(return_value=False)
+    return cm
+
+
 class TestResolveMediaUrlNeedsPath:
-    @patch("clinstagram.media.httpx.get")
-    def test_url_downloaded_to_temp(self, mock_get):
-        mock_response = MagicMock()
-        mock_response.content = b"fake image data"
-        mock_response.raise_for_status = MagicMock()
-        mock_get.return_value = mock_response
+    @patch("clinstagram.media.httpx.stream")
+    def test_url_downloaded_to_temp(self, mock_stream):
+        mock_stream.return_value = _mock_stream(b"fake image data")
 
         result = resolve_media("https://example.com/photo.jpg", needs_url=False)
 
         assert Path(result).suffix == ".jpg"
         assert Path(result).exists()
         assert Path(result).read_bytes() == b"fake image data"
-        mock_get.assert_called_once_with("https://example.com/photo.jpg", follow_redirects=True, timeout=30.0)
+        mock_stream.assert_called_once_with("GET", "https://example.com/photo.jpg", follow_redirects=True, timeout=30.0)
 
         # Cleanup
         Path(result).unlink(missing_ok=True)
 
-    @patch("clinstagram.media.httpx.get")
-    def test_url_infers_extension(self, mock_get):
-        mock_response = MagicMock()
-        mock_response.content = b"fake video data"
-        mock_response.raise_for_status = MagicMock()
-        mock_get.return_value = mock_response
+    @patch("clinstagram.media.httpx.stream")
+    def test_url_infers_extension(self, mock_stream):
+        mock_stream.return_value = _mock_stream(b"fake video data")
 
         result = resolve_media("https://example.com/clip.mp4", needs_url=False)
 
         assert Path(result).suffix == ".mp4"
         Path(result).unlink(missing_ok=True)
 
-    @patch("clinstagram.media.httpx.get")
-    def test_url_default_extension(self, mock_get):
-        mock_response = MagicMock()
-        mock_response.content = b"data"
-        mock_response.raise_for_status = MagicMock()
-        mock_get.return_value = mock_response
+    @patch("clinstagram.media.httpx.stream")
+    def test_url_default_extension(self, mock_stream):
+        mock_stream.return_value = _mock_stream(b"data")
 
         result = resolve_media("https://example.com/media", needs_url=False)
 
@@ -103,12 +106,9 @@ class TestResolveMediaLocalPath:
 
 
 class TestCleanupTempFiles:
-    @patch("clinstagram.media.httpx.get")
-    def test_cleanup_removes_files(self, mock_get):
-        mock_response = MagicMock()
-        mock_response.content = b"data"
-        mock_response.raise_for_status = MagicMock()
-        mock_get.return_value = mock_response
+    @patch("clinstagram.media.httpx.stream")
+    def test_cleanup_removes_files(self, mock_stream):
+        mock_stream.return_value = _mock_stream(b"data")
 
         result = resolve_media("https://example.com/photo.jpg", needs_url=False)
         temp_path = Path(result)
