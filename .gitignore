@@ -5,3 +5,4 @@ __pycache__/
 dist/
 build/
 .clinstagram/
+.claude/tsc-cache/
