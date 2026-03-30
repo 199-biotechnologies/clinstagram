@@ -1,37 +1,42 @@
-<p align="center">
-  <img src="assets/logo.png" alt="clinstagram" width="128">
-</p>
+<div align="center">
 
-<h1 align="center">clinstagram</h1>
+<img src="assets/logo.png" alt="Clinstagram" width="128">
 
-<p align="center">
-  <strong>The Instagram CLI that AI agents actually use.</strong><br>
-  Meta Graph API + instagrapi private API in one tool. Built for <a href="https://github.com/openclaw/openclaw">OpenClaw</a>.
-</p>
+# Clinstagram
 
-<p align="center">
-  <a href="#install">Install</a> •
-  <a href="#quick-start">Quick Start</a> •
-  <a href="#commands">Commands</a> •
-  <a href="#for-agents">For Agents</a> •
-  <a href="#compliance-modes">Safety</a> •
-  <a href="#architecture">Architecture</a>
-</p>
+**The Instagram CLI that AI agents actually use.**
+
+<br />
+
+[![Star this repo](https://img.shields.io/github/stars/199-biotechnologies/clinstagram?style=for-the-badge&logo=github&label=%E2%AD%90%20Star%20this%20repo&color=yellow)](https://github.com/199-biotechnologies/clinstagram/stargazers)
+&nbsp;&nbsp;
+[![Follow @longevityboris](https://img.shields.io/badge/Follow_%40longevityboris-000000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/longevityboris)
+
+<br />
+
+[![PyPI](https://img.shields.io/pypi/v/clinstagram?style=for-the-badge&logo=pypi&logoColor=white)](https://pypi.org/project/clinstagram/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-3776ab?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-120%20passing-brightgreen?style=for-the-badge)](tests/)
 
 ---
 
-## Why
+One CLI. Two backends. Zero browser automation. Clinstagram wraps the official Meta Graph API and the instagrapi private API behind a single command-line interface with structured JSON output. Policy-driven routing picks the safest path for every command automatically.
 
-Every Instagram automation tool makes you choose: **official API** (safe but limited) or **private API** (full-featured but risky). clinstagram gives you both behind one CLI, with policy-driven routing that picks the safest path automatically.
+[Install](#install) | [How It Works](#how-it-works) | [Commands](#commands) | [Contributing](#contributing)
+
+</div>
+
+## Why This Exists
+
+Every Instagram automation tool makes you choose: official API (safe but limited) or private API (full-featured but risky). Clinstagram gives you both.
+
+You run one command. The router checks your compliance mode, inspects your configured backends, and picks the safest path. No Playwright. No Selenium. No headless browsers. Just structured JSON output with exit codes that AI agents can parse.
 
 ```bash
-# This command automatically routes through the official Graph API
-# if you have a Business account, or falls back to private API if not
 $ clinstagram --json dm inbox
-{"exit_code":0,"data":[{"thread_id":"839201","thread_title":"alice","participants":[{"id":"1784","username":"alice","full_name":"Alice","profile_picture_url":null,"is_private":null,"is_verified":null,"biography":null,"followers_count":null,"following_count":null,"media_count":null}],"last_message":"hey!","last_message_at":"2026-03-12T12:00:00+0000","unread":true}],"backend_used":"graph_fb"}
+{"exit_code":0,"data":[{"thread_id":"839201","thread_title":"alice", ...}],"backend_used":"graph_fb"}
 ```
-
-No browser automation. No Playwright. No bot detection. Just structured CLI commands with JSON output.
 
 ## Install
 
@@ -41,7 +46,7 @@ Requires **Python 3.10+**.
 pip install clinstagram
 ```
 
-Or install from source (recommended for development):
+Or from source:
 
 ```bash
 git clone https://github.com/199-biotechnologies/clinstagram.git
@@ -49,122 +54,142 @@ cd clinstagram
 pip install -e ".[dev]"
 ```
 
-Verify it works:
+### Quick Start
 
 ```bash
-clinstagram --version
-# clinstagram 0.1.0
-```
-
-## Quick Start
-
-```bash
-# 1. Private login (username, email, or phone — locale auto-detected from your system)
+# 1. Log in (username, email, or phone — locale auto-detected)
 clinstagram auth login -u your_username
 
-# 2. Optional: import official Graph tokens if you have them already
+# 2. Optional: connect official Graph API tokens
 clinstagram auth connect-ig --token <instagram-login-token>
 clinstagram auth connect-fb --token <facebook-login-token>
 
 # 3. Check what is configured
 clinstagram --json auth status
-clinstagram --json auth probe
 
-# 4. Use read-only commands immediately
+# 4. Start using it
 clinstagram --json dm inbox
 clinstagram --json analytics profile
-
-# 5. Enable private write actions only when you explicitly want them
-clinstagram config mode private-enabled
 clinstagram --json post photo cat.jpg --caption "via clinstagram"
 ```
 
-> **Important:** `--json`, `--proxy`, and `--account` are **global flags** — they go **before** the command:
-> ```bash
-> clinstagram --json dm inbox          # correct
-> clinstagram dm inbox --json          # WRONG — will error
-> ```
+> **Note:** `--json`, `--proxy`, and `--account` are **global flags** and go **before** the command name.
+
+## How It Works
+
+Clinstagram routes every command through a policy engine that picks the best backend based on your compliance mode and available credentials.
+
+```
+CLI Command
+    ↓
+Policy Router (capability matrix x compliance mode)
+    ↓
+┌──────────┬──────────┬────────────┐
+│ graph_ig │ graph_fb │  private   │
+│ (OAuth)  │ (OAuth)  │(instagrapi)│
+│ Post     │ Post+DM  │ Everything │
+│ Comments │ Stories  │ + proxy    │
+│Analytics │ Webhooks │ + keychain │
+└──────────┴──────────┴────────────┘
+```
+
+### Three Backends
+
+| Backend | Auth | Best For |
+|---------|------|----------|
+| `graph_ig` | Instagram Login token | Posting, comments, analytics |
+| `graph_fb` | Facebook Login token | Above + DMs, story publishing |
+| `private` | Username/password/2FA | Everything. Cold DMs. Personal accounts. |
+
+### Three Compliance Modes
+
+| Mode | Official API | Private API | Risk |
+|------|-------------|-------------|------|
+| `official-only` | Full | Disabled | Zero |
+| `hybrid-safe` | Full | Read-only | Low |
+| `private-enabled` | Full | Full | High |
+
+Default is `hybrid-safe`. You get official API for everything it supports, plus private API for read-only operations like viewing stories.
 
 ## Commands
 
-### Auth
-```bash
-clinstagram auth status          # Show which backends are configured
-clinstagram auth connect-ig      # Store an Instagram Login access token
-clinstagram auth connect-fb      # Store a Facebook Login access token (enables DMs)
-clinstagram auth login -u user   # Private API (username, email, or phone)
-clinstagram auth probe           # Live-check configured backends
-clinstagram auth logout --yes    # Clear all stored sessions
-```
+### Posting
 
-### Post
 ```bash
 clinstagram --json post photo <path|url> --caption "..." --tags "@user"
-clinstagram --json post video <path|url> --caption "..."          # file thumbnails require private backend
-clinstagram --json post reel <path|url> --caption "..."           # file thumbnails require private backend
+clinstagram --json post video <path|url> --caption "..."
+clinstagram --json post reel <path|url> --caption "..."
 clinstagram --json post carousel img1.jpg img2.jpg --caption "..."
 ```
 
 ### Direct Messages
+
 ```bash
 clinstagram --json dm inbox --unread --limit 10
 clinstagram --json dm thread @alice --limit 20
-clinstagram --json dm send @alice "Thanks for reaching out!"      # cold DM via private backend
-clinstagram --json dm send 123456789 "Thanks for reaching out!"   # reply via thread/recipient ID
-clinstagram --json dm send-media @alice photo.jpg                 # prefers private for usernames/local files
+clinstagram --json dm send @alice "Thanks for reaching out!"
+clinstagram --json dm send-media @alice photo.jpg
 clinstagram --json dm search "project"
 ```
 
 ### Stories
+
 ```bash
 clinstagram --json story list
 clinstagram --json story list @alice
 clinstagram --json story post-photo photo.jpg --mention @alice
-clinstagram --json story post-video clip.mp4 --link "https://..." # story links require private backend
+clinstagram --json story post-video clip.mp4 --link "https://..."
 clinstagram --json story viewers <story_id>
 ```
 
-### Comments
-```bash
-clinstagram --json comments list <media_id> --limit 50
-clinstagram --json comments reply <comment_ref> "Great point!"
-clinstagram --json comments delete <comment_ref>
-```
-
 ### Analytics
+
 ```bash
 clinstagram --json analytics profile
 clinstagram --json analytics post <media_id>
 clinstagram --json analytics hashtag "photography"
 ```
 
+### Comments
+
+```bash
+clinstagram --json comments list <media_id> --limit 50
+clinstagram --json comments reply <comment_ref> "Great point!"
+clinstagram --json comments delete <comment_ref>
+```
+
 ### Followers
+
 ```bash
 clinstagram --json followers list --limit 100
 clinstagram --json followers following
-clinstagram --json --enable-growth-actions followers follow @user    # Disabled by default
+clinstagram --json --enable-growth-actions followers follow @user
 clinstagram --json --enable-growth-actions followers unfollow @user
 ```
 
-### User
+### User Lookup
+
 ```bash
 clinstagram --json user info @username
-clinstagram --json user search "alice"              # username-style lookup on official route
+clinstagram --json user search "alice"
 clinstagram --json user posts @username --limit 10
 ```
 
-### Config
+### Auth & Config
+
 ```bash
-clinstagram --json config show
-clinstagram config mode official-only     # Zero risk
-clinstagram config mode hybrid-safe       # Official + private read-only (default)
-clinstagram config mode private-enabled   # Full access
+clinstagram auth status              # Show configured backends
+clinstagram auth probe               # Live-check token validity
+clinstagram auth login -u user       # Private API login
+clinstagram auth connect-ig          # Store Instagram Login token
+clinstagram auth connect-fb          # Store Facebook Login token
+clinstagram auth logout --yes        # Clear all sessions
+
+clinstagram config mode hybrid-safe  # Set compliance mode
 clinstagram config set proxy socks5://localhost:1080
 ```
 
-## Global Flags
-
-Global flags go **before** the command name.
+### Global Flags
 
 | Flag | Description |
 |------|-------------|
@@ -175,120 +200,54 @@ Global flags go **before** the command name.
 | `--dry-run` | Preview without executing |
 | `--enable-growth-actions` | Unlock follow/unfollow |
 
-## For Agents
+## For AI Agents
 
-clinstagram is designed to be called by AI agents like OpenClaw. Every command:
+Clinstagram is built for AI agents like [OpenClaw](https://github.com/openclaw/openclaw). Every command returns structured JSON with a `backend_used` field so your agent knows which path was taken.
 
-- Returns **structured JSON** with `--json` (auto-detected when piped)
-- Includes `backend_used` field so agents know which path was taken
-- Uses the same success envelope for command groups like `auth`, `config`, and `logout`
-- Uses **exit codes** for machine-readable error handling:
+Exit codes tell the agent exactly what happened:
 
 | Exit Code | Meaning | Agent Action |
 |-----------|---------|--------------|
 | 0 | Success | Parse JSON |
 | 1 | Bad arguments | Fix command |
-| 2 | Auth error | Run `auth login` or `auth connect-*` |
+| 2 | Auth error | Run `auth login` |
 | 3 | Rate limited | Retry after `retry_after` seconds |
 | 4 | API error | Retry or report |
-| 5 | Challenge required | Prompt user (2FA/email) |
+| 5 | Challenge required | Prompt user (2FA) |
 | 6 | Policy blocked | Change compliance mode |
 | 7 | Capability unavailable | Connect additional backend |
 
-Every error includes a `remediation` field with the exact command to fix it:
+Every error includes a `remediation` field with the exact fix:
+
 ```json
 {"exit_code": 2, "error": "session_expired", "remediation": "Run: clinstagram auth login"}
 ```
 
-`auth status` reports configured backends only. Use `auth probe` when you need a live validity check for tokens or sessions.
+### OpenClaw Integration
 
-### OpenClaw Skill
-
-Drop clinstagram into your OpenClaw workspace:
 ```bash
 pip install clinstagram
-# Or paste the GitHub URL into your OpenClaw chat
+# The included SKILL.md tells OpenClaw what commands are available
 ```
 
-The included `SKILL.md` tells OpenClaw what commands are available.
-
-## Compliance Modes
-
-clinstagram routes commands through three backends with **policy-driven safety**:
-
-| Mode | Official API | Private API | Risk |
-|------|-------------|-------------|------|
-| `official-only` | Full | Disabled | Zero |
-| `hybrid-safe` | Full | Read-only | Low |
-| `private-enabled` | Full | Full | High |
-
-**Default is `hybrid-safe`** — you get official API for everything it supports, plus private API for read-only operations like viewing stories or listing followers.
-Forced backends via `--backend` are still checked against compliance policy.
-
-### Three Backends
-
-| Backend | Auth | Best For |
-|---------|------|----------|
-| `graph_ig` | Imported Instagram Login token | Posting, comments, analytics. No Facebook Page needed. |
-| `graph_fb` | Imported Facebook Login token | Everything above + DMs, story publishing. Needs linked Page. |
-| `private` | Username/password/2FA | Everything. Personal accounts. Cold DMs. Proxy strongly recommended. |
-
-The router prefers official APIs unless you explicitly force or prefer another backend. Private API is only used when:
-1. The feature isn't available via Graph API (e.g., cold DMs, story viewing)
-2. Your compliance mode allows it
-3. You have a valid private session
-
-For local-file write commands on Graph backends, you must supply a public URL. Auto-routing only falls back to private for local files when your compliance mode allows private writes.
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────┐
-│                  CLI Layer                    │
-│   typer + rich (--json / human output)       │
-├─────────────────────────────────────────────┤
-│              Policy Router                   │
-│   CAPABILITY_MATRIX × ComplianceMode         │
-│   → picks best backend per command           │
-├──────────┬──────────┬───────────────────────┤
-│ graph_ig │ graph_fb │      private          │
-│ (OAuth)  │ (OAuth)  │   (instagrapi)        │
-│ Post     │ Post+DM  │   Everything          │
-│ Comments │ Stories  │   + proxy support     │
-│ Analytics│ Webhooks │   + session persist   │
-├──────────┴──────────┴───────────────────────┤
-│              Config Layer                    │
-│   TOML config, rate limits, compliance       │
-├─────────────────────────────────────────────┤
-│              Secrets                         │
-│   OS Keychain (macOS/Linux/Windows)          │
-└─────────────────────────────────────────────┘
-```
-
-### Key Design Decisions
-
-- **Policy-driven routing** — Commands are routed based on a capability matrix and compliance mode, and `--backend` overrides are still policy-checked.
-- **Graph DMs are reply-oriented** — use a thread/recipient ID on official messaging routes. Cold DMs still require private API.
-- **Growth actions disabled by default** — `follow`/`unfollow` require `--enable-growth-actions` flag.
-- **Proxy strongly recommended for private API** — protects against IP-based detection on cloud VPS.
-- **OS keychain for secrets** — No plaintext tokens on disk. Sessions persist in keychain with device UUID preservation.
-
-## Rate Limits
+## Configuration
 
 ```toml
 # ~/.clinstagram/config.toml
 [rate_limits]
 graph_dm_per_hour = 200       # Meta's hard limit
 private_dm_per_hour = 30      # Conservative default
-private_follows_per_day = 20  # Well below Instagram's threshold
-request_delay_min = 2.0       # Seconds between private API write calls
-request_delay_max = 5.0       # Read-only ops use [0, delay_min] for speed
-request_jitter = true         # Randomized within delay range
+private_follows_per_day = 20  # Below Instagram's threshold
+request_delay_min = 2.0       # Seconds between private API writes
+request_delay_max = 5.0
+request_jitter = true         # Randomized delays
 ```
 
-The delay range is enforced today. The hourly and daily values are advisory config targets and are not yet hard-blocking quotas.
+Secrets are stored in your OS keychain (macOS Keychain, Linux Secret Service, Windows Credential Manager). No plaintext tokens on disk.
 
-## Development
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ```bash
 git clone https://github.com/199-biotechnologies/clinstagram.git
@@ -299,11 +258,20 @@ pytest tests/ -v   # 120 tests
 
 ## License
 
-MIT
+[MIT](LICENSE)
 
-## Credits
+---
 
-- [instagrapi](https://github.com/subzeroid/instagrapi) — Instagram Private API wrapper
-- [OpenClaw](https://github.com/openclaw/openclaw) — AI agent platform
-- [Typer](https://typer.tiangolo.com/) — CLI framework
-- Built by [199 Biotechnologies](https://github.com/199-biotechnologies)
+<div align="center">
+
+Built by [Boris Djordjevic](https://github.com/longevityboris) at [199 Biotechnologies](https://github.com/199-biotechnologies) | [Paperfoot AI](https://paperfoot.ai)
+
+<br />
+
+**If this is useful to you:**
+
+[![Star this repo](https://img.shields.io/github/stars/199-biotechnologies/clinstagram?style=for-the-badge&logo=github&label=%E2%AD%90%20Star%20this%20repo&color=yellow)](https://github.com/199-biotechnologies/clinstagram/stargazers)
+&nbsp;&nbsp;
+[![Follow @longevityboris](https://img.shields.io/badge/Follow_%40longevityboris-000000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/longevityboris)
+
+</div>
