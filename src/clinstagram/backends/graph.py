@@ -116,16 +116,46 @@ class GraphBackend(Backend):
         }
 
     def _normalize_media(self, data: dict[str, Any]) -> dict[str, Any]:
+        media_type = data.get("media_type")
+        media_url = data.get("media_url")
+
+        # Graph API returns a single media_url; infer video vs thumbnail
+        video_url = media_url if media_type == "VIDEO" else None
+        thumbnail_url = media_url if media_type != "VIDEO" else data.get("thumbnail_url")
+
+        # Carousel children (if requested with children{} expansion)
+        children_raw = data.get("children", {}).get("data", [])
+        resources = None
+        if children_raw:
+            resources = [
+                {
+                    "id": str(child["id"]),
+                    "media_type": child.get("media_type"),
+                    "thumbnail_url": child.get("media_url") if child.get("media_type") != "VIDEO" else None,
+                    "video_url": child.get("media_url") if child.get("media_type") == "VIDEO" else None,
+                }
+                for child in children_raw
+            ]
+
         return {
             "id": str(data["id"]),
             "code": data.get("shortcode") or data.get("code"),
-            "media_type": data.get("media_type"),
+            "media_type": media_type,
+            "product_type": data.get("media_product_type"),
             "caption": data.get("caption", ""),
+            "accessibility_caption": None,
+            "title": None,
             "timestamp": data.get("timestamp"),
             "like_count": data.get("like_count", 0),
             "comment_count": data.get("comment_count", data.get("comments_count", 0)),
-            "media_url": data.get("media_url"),
+            "play_count": None,
+            "video_url": video_url,
+            "thumbnail_url": thumbnail_url,
+            "video_duration": None,
             "permalink": data.get("permalink"),
+            "location": None,
+            "usertags": None,
+            "resources": resources,
         }
 
     def _normalize_comment(self, data: dict[str, Any]) -> dict[str, Any]:
@@ -427,7 +457,7 @@ class GraphBackend(Backend):
                 raise ValueError("No posts found for the current account")
             media_id = str(items[0]["id"])
         params = {
-            "fields": "id,caption,like_count,comments_count,timestamp,media_type,media_url,permalink,shortcode",
+            "fields": "id,caption,like_count,comments_count,timestamp,media_type,media_product_type,media_url,thumbnail_url,permalink,shortcode,children{id,media_type,media_url}",
         }
         return self._normalize_media(self._get(media_id, params))
 
@@ -501,7 +531,7 @@ class GraphBackend(Backend):
         self._validate_username(username)
         me = self._me_id()
         params = {
-            "fields": f"business_discovery.fields(media.limit({limit}){{id,caption,media_type,media_url,timestamp,like_count,comments_count}}).username({username})",
+            "fields": f"business_discovery.fields(media.limit({limit}){{id,caption,media_type,media_product_type,media_url,thumbnail_url,timestamp,like_count,comments_count,permalink,shortcode,children{{id,media_type,media_url}}}}).username({username})",
         }
         data = self._get(me, params)
         business = data.get("business_discovery", {})
@@ -545,7 +575,7 @@ class GraphBackend(Backend):
             return []
         me = self._me_id()
         params = {
-            "fields": "id,caption,media_type,media_url,timestamp,like_count,comments_count",
+            "fields": "id,caption,media_type,media_product_type,media_url,thumbnail_url,timestamp,like_count,comments_count,permalink,shortcode,children{id,media_type,media_url}",
             "user_id": me,
             "limit": str(limit),
         }
@@ -558,7 +588,7 @@ class GraphBackend(Backend):
             return []
         me = self._me_id()
         params = {
-            "fields": "id,caption,media_type,media_url,timestamp,like_count,comments_count",
+            "fields": "id,caption,media_type,media_product_type,media_url,thumbnail_url,timestamp,like_count,comments_count,permalink,shortcode,children{id,media_type,media_url}",
             "user_id": me,
             "limit": str(limit),
         }

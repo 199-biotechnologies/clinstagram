@@ -28,20 +28,67 @@ def _user_to_dict(user: Any) -> dict:
     }
 
 
+def _location_to_dict(loc: Any) -> dict | None:
+    """Convert an instagrapi Location model to a plain dict."""
+    if loc is None:
+        return None
+    return {
+        "name": getattr(loc, "name", None),
+        "address": getattr(loc, "address", None),
+        "city": getattr(loc, "city", None),
+        "lat": getattr(loc, "lat", None),
+        "lng": getattr(loc, "lng", None),
+    }
+
+
+def _resource_to_dict(res: Any) -> dict:
+    """Convert an instagrapi Resource (carousel child) to a plain dict."""
+    video_url = getattr(res, "video_url", None)
+    thumbnail_url = getattr(res, "thumbnail_url", None)
+    return {
+        "id": str(res.pk),
+        "media_type": res.media_type,
+        "thumbnail_url": str(thumbnail_url) if thumbnail_url else None,
+        "video_url": str(video_url) if video_url else None,
+    }
+
+
 def _media_to_dict(media: Any) -> dict:
     """Convert an instagrapi Media model to a plain dict."""
-    media_url = getattr(media, "thumbnail_url", None) or getattr(media, "video_url", None)
+    thumbnail_url = getattr(media, "thumbnail_url", None)
+    video_url = getattr(media, "video_url", None)
     permalink = getattr(media, "link", None)
+
+    # Carousel children
+    resources = getattr(media, "resources", None) or []
+
+    # Tagged users — extract just usernames
+    usertags_raw = getattr(media, "usertags", None) or []
+    usertags = [
+        getattr(ut.user, "username", None)
+        for ut in usertags_raw
+        if getattr(ut, "user", None) and getattr(ut.user, "username", None)
+    ]
+
     return {
         "id": str(media.pk),
         "code": media.code,
         "media_type": media.media_type,
+        "product_type": getattr(media, "product_type", None),
         "caption": media.caption_text if hasattr(media, "caption_text") else "",
+        "accessibility_caption": getattr(media, "accessibility_caption", None),
+        "title": getattr(media, "title", None) or None,
         "timestamp": str(media.taken_at) if media.taken_at else None,
         "like_count": getattr(media, "like_count", 0),
         "comment_count": getattr(media, "comment_count", 0),
-        "media_url": str(media_url) if media_url else None,
+        "play_count": getattr(media, "play_count", None),
+        "video_url": str(video_url) if video_url else None,
+        "thumbnail_url": str(thumbnail_url) if thumbnail_url else None,
+        "video_duration": getattr(media, "video_duration", None),
         "permalink": str(permalink) if permalink else None,
+        "location": _location_to_dict(getattr(media, "location", None)),
+        "usertags": usertags if usertags else None,
+        "resources": [_resource_to_dict(r) for r in resources] if resources else None,
     }
 
 
