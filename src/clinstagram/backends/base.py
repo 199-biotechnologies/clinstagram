@@ -113,3 +113,7 @@ class Backend(ABC):
 
     @abstractmethod
     def hashtag_recent(self, tag: str, limit: int = 20) -> list[dict]: ...
+
+    # Media download
+    @abstractmethod
+    def media_download(self, media_ref: str, output_dir: str = "") -> dict: ...

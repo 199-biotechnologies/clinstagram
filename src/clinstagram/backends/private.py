@@ -562,3 +562,51 @@ class PrivateBackend(Backend):
             return [_media_to_dict(m) for m in medias]
         except Exception as exc:
             raise _wrap_error("hashtag_recent", exc)
+
+    # ------------------------------------------------------------------
+    # Media download
+    # ------------------------------------------------------------------
+
+    def media_download(self, media_ref: str, output_dir: str = "") -> dict:
+        """Download media by id/shortcode/URL. Returns paths and metadata."""
+        from pathlib import Path
+
+        try:
+            # Resolve ref → media_pk
+            if media_ref.startswith("http://") or media_ref.startswith("https://"):
+                media_pk = int(self._cl.media_pk_from_url(media_ref))
+            elif media_ref.isdigit():
+                media_pk = int(media_ref)
+            else:
+                # Assume shortcode
+                media_pk = int(self._cl.media_pk_from_code(media_ref))
+
+            folder = Path(output_dir) if output_dir else Path.cwd()
+            folder.mkdir(parents=True, exist_ok=True)
+
+            info = self._cl.media_info(media_pk)
+            media_type = info.media_type  # 1=photo, 2=video, 8=album
+
+            files: list[str] = []
+            if media_type == 1:
+                path = self._cl.photo_download(media_pk, folder=folder)
+                files.append(str(path))
+            elif media_type == 2:
+                path = self._cl.video_download(media_pk, folder=folder)
+                files.append(str(path))
+            elif media_type == 8:
+                paths = self._cl.album_download(media_pk, folder=folder)
+                files.extend(str(p) for p in paths)
+            else:
+                raise ValueError(f"Unsupported media_type: {media_type}")
+
+            return {
+                "media_id": str(media_pk),
+                "code": info.code,
+                "media_type": media_type,
+                "product_type": getattr(info, "product_type", None),
+                "files": files,
+                "output_dir": str(folder.resolve()),
+            }
+        except Exception as exc:
+            raise _wrap_error("media_download", exc)

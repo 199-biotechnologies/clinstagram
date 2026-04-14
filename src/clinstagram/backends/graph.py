@@ -594,3 +594,9 @@ class GraphBackend(Backend):
         }
         data = self._get(f"{hashtag_id}/recent_media", params)
         return [self._normalize_media(item) for item in data.get("data", [])]
+
+    def media_download(self, media_ref: str, output_dir: str = "") -> dict:
+        raise NotImplementedError(
+            "The Graph API cannot download media (CDN URLs require an authenticated "
+            "session). Use --backend private for this feature."
+        )

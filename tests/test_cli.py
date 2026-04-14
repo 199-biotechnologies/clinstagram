@@ -15,7 +15,7 @@ def test_help():
 def test_version():
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert "0.2.0" in result.stdout
+    assert "0.3.1" in result.stdout
 
 
 def test_auth_status_json(tmp_path, monkeypatch):
