@@ -1,6 +1,6 @@
 [project]
 name = "clinstagram"
-version = "0.2.0"
+version = "0.3.0"
 description = "Hybrid Instagram CLI for OpenClaw — Graph API + Private API"
 requires-python = ">=3.10"
 dependencies = [
