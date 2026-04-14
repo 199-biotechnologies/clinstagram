@@ -16,10 +16,23 @@ clinstagram dm inbox --json                    # WRONG — Typer limitation
 
 Global flags: `--json`, `--account NAME`, `--backend auto|graph_ig|graph_fb|private`, `--proxy URL`, `--dry-run`, `--enable-growth-actions`
 
+## Discovery: run `clinstagram agent-info` first
+
+```bash
+clinstagram agent-info   # emits a bare JSON manifest of every command, arg, option, exit code, envelope, and backend capability. This is the source of truth for what this CLI can do.
+```
+
+Related agent-facing commands:
+- `clinstagram --json doctor [--deep]` — structured environment/session health check. Offline by default; `--deep` runs live probes (costs quota).
+- `clinstagram --json update` — check PyPI for a newer version (check-only by default). To actually upgrade: `clinstagram update --apply --yes` (only works for plain pip installs).
+
 ## Commands
 
 | Group | Commands | Notes |
 |-------|----------|-------|
+| `agent-info` | `agent-info`, `info` (alias) | Bare JSON manifest — start here for discovery |
+| `doctor` | `doctor [--deep]` | Offline-by-default health check; use global `--account` to scope |
+| `update` | `update [--check] [--apply --yes] [--pre]` | Default is check-only. `--apply` refuses editable/pipx/uv/system installs. |
 | `auth` | `status`, `login`, `connect-ig`, `connect-fb`, `probe`, `logout` | Always start with `auth status --json` |
 | `post` | `photo`, `video`, `reel`, `carousel` | Accepts local paths or URLs |
 | `dm` | `inbox`, `thread ID`, `send @user "text"`, `send-media`, `search` | Cold DMs = private API only |
@@ -27,22 +40,27 @@ Global flags: `--json`, `--account NAME`, `--backend auto|graph_ig|graph_fb|priv
 | `comments` | `list MEDIA_ID`, `add`, `reply`, `delete` | add/reply need `--enable-growth-actions` |
 | `analytics` | `profile`, `post ID\|latest`, `hashtag TAG` | |
 | `followers` | `list`, `following`, `follow @user`, `unfollow @user` | follow/unfollow need `--enable-growth-actions` |
-| `user` | `info @user`, `search QUERY`, `posts @user` | |
+| `user` | `info @user`, `search QUERY`, `posts @user` | `posts` returns captions, video_url, product_type, location, usertags, carousel children |
+| `media` | `download <id\|shortcode\|url> [-o DIR]` | Save reel/post/carousel. Private backend only. |
 | `hashtag` | `top TAG`, `recent TAG` | |
 | `like` | `post MEDIA_ID`, `undo MEDIA_ID` | Needs `--enable-growth-actions` |
 | `config` | `show`, `mode MODE`, `set KEY VAL` | Modes: `official-only`, `hybrid-safe`, `private-enabled` |
 
 ## JSON Output Schema
 
-Success:
+Success (stdout):
 ```json
-{"exit_code": 0, "data": {}, "backend_used": "graph_fb"}
+{"exit_code": 0, "data": { ... }, "backend_used": "graph_fb"}
 ```
+`backend_used` is always present (may be `null` for commands that do not touch a backend).
 
-Error:
+Error (stdout; exits nonzero):
 ```json
-{"exit_code": 2, "error": "session_expired", "remediation": "Run: clinstagram auth login", "retry_after": null}
+{"exit_code": 2, "error": "session_expired", "remediation": "Run: clinstagram auth login"}
 ```
+Optional fields `remediation`, `retry_after`, `challenge_type`, `challenge_url` are omitted when unset (not emitted as `null`).
+
+JSON auto-enables when stdout is not a TTY — you do not need `--json` in pipes.
 
 ## Exit Codes
 

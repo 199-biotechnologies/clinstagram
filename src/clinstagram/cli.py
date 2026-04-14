@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import typer
 
@@ -64,8 +65,259 @@ def main(
         ctx.obj["secrets"] = SecretsStore(backend="memory")
 
 
+@app.command("agent-info")
+@app.command("info", hidden=True)
+def agent_info():
+    """Output machine-readable manifest of CLI capabilities."""
+    from clinstagram.models import ExitCode
+
+    # Static manifest parts
+    manifest: dict[str, Any] = {
+        "name": "clinstagram",
+        "version": __version__,
+        "description": "Hybrid Instagram CLI for agents (Graph API + instagrapi)",
+        "homepage": "https://github.com/199-biotechnologies/clinstagram",
+        "commands": {},
+        "global_flags": {
+            "--json": {"description": "Output as JSON (place before subcommand)", "type": "boolean"},
+            "--account": {"description": "Account name", "type": "string", "default": "default"},
+            "--backend": {
+                "description": "Force backend",
+                "type": "string",
+                "values": ["auto", "graph_ig", "graph_fb", "private"],
+                "default": "auto",
+            },
+            "--proxy": {"description": "Proxy URL for private API", "type": "string"},
+            "--dry-run": {"description": "Show what would happen", "type": "boolean"},
+            "--enable-growth-actions": {
+                "description": "Unlock follow/unfollow, like/unlike, and commenting",
+                "type": "boolean",
+            },
+        },
+        "exit_codes": {
+            str(code.value): description
+            for code, description in zip(
+                ExitCode,
+                [
+                    "SUCCESS",
+                    "USER_ERROR \u2014 invalid arguments or user error",
+                    "AUTH_ERROR \u2014 authentication failed or session expired",
+                    "RATE_LIMITED \u2014 wait and retry",
+                    "API_ERROR \u2014 upstream API failed (transient)",
+                    "CHALLENGE_REQUIRED \u2014 2FA or checkpoint needed",
+                    "POLICY_BLOCKED \u2014 action blocked by compliance mode / growth gate",
+                    "CAPABILITY_UNAVAILABLE \u2014 selected backend cannot do this",
+                ],
+            )
+        },
+
+        "envelope": {
+            "success": {
+                "shape": "{ exit_code: int, data: any, backend_used: string | null }",
+                "notes": "`backend_used` is always present (may be null for commands that don't touch a backend).",
+            },
+            "error": {
+                "shape": "{ exit_code: int, error: string, remediation?: string, retry_after?: int, challenge_type?: string, challenge_url?: string }",
+                "notes": "Unset optional fields are omitted (not emitted as null). `retry_after` present on RATE_LIMITED. `challenge_*` present on CHALLENGE_REQUIRED.",
+            },
+            "status_field": None,
+            "version_field": None,
+            "standard": "non-ACF",
+        },
+        "compliance_modes": {
+            "official-only": "Only graph_ig / graph_fb. Private backend blocked.",
+            "hybrid-safe": "Graph API preferred; private only for read-only features. No growth actions.",
+            "private-enabled": "Private backend allowed for all features including growth actions.",
+        },
+        "config": {
+            "path": "~/.clinstagram/config.toml",
+            "env_prefix": "CLINSTAGRAM_",
+            "env_vars": {
+                "CLINSTAGRAM_CONFIG_DIR": "Override config dir (default ~/.clinstagram)",
+                "CLINSTAGRAM_TEST_MODE": "Set to `1` to use an in-memory secrets store (for tests).",
+            },
+            "account_dir": "~/.clinstagram/accounts/",
+        },
+        "auto_json_when_piped": True,
+        "notes_for_agents": {
+            "json_flag_position": "`--json` must come BEFORE the subcommand (e.g. `clinstagram --json user posts @someuser`). Not strictly required if stdout is piped; clinstagram auto-enables JSON when not a TTY.",
+            "growth_gate": "Follow/unfollow/like/comment require --enable-growth-actions and compliance_mode != hybrid-safe.",
+            "backend_auto_select": "Omit --backend to let the router pick. Use --backend private only when needed.",
+            "discover_posts": "Use `clinstagram --json user posts @username --limit N` to list recent media with captions, video_url, product_type.",
+            "download_media": "Use `clinstagram media download <id|shortcode|url>` to save a post/reel/carousel locally.",
+            "doctor": "`clinstagram --json doctor` reports structured health checks; `--deep` runs live probes (costs quota).",
+            "update": "`clinstagram --json update` is check-only by default. To self-upgrade: `clinstagram update --apply --yes` (requires plain pip install).",
+        },
+    }
+
+    # Derive backend capability lists from the single source of truth so the
+    # manifest never drifts from the router's decisions.
+    from clinstagram.backends.capabilities import CAPABILITY_MATRIX
+
+    manifest["backends"] = {
+        "graph_ig": {
+            "description": "Meta Graph API via Instagram login. Official, most compliance-safe. Business/Creator only.",
+            "capabilities": sorted(f.value for f in CAPABILITY_MATRIX["graph_ig"]),
+        },
+        "graph_fb": {
+            "description": "Meta Graph API via Facebook login. Official, supports DMs and stories.",
+            "capabilities": sorted(f.value for f in CAPABILITY_MATRIX["graph_fb"]),
+        },
+        "private": {
+            "description": "instagrapi (reverse-engineered). Full feature set. Detection risk — use behind a residential proxy if possible.",
+            "capabilities": sorted(f.value for f in CAPABILITY_MATRIX["private"]),
+        },
+    }
+
+    # Introspect commands — walk the Typer app and extract click.Command params
+    import click
+
+    def _param_kind(param: "click.Parameter") -> str:
+        return "positional" if isinstance(param, click.Argument) else "option"
+
+    def _param_type_name(param: "click.Parameter") -> str:
+        t = param.type
+        if isinstance(t, click.Choice):
+            return "choice"
+        name = getattr(t, "name", None) or type(t).__name__.lower()
+        return {"int": "integer", "string": "string", "bool": "boolean", "float": "number"}.get(name, name)
+
+    def _param_to_dict(param: "click.Parameter") -> dict:
+        d: dict[str, Any] = {
+            "name": (param.opts[0] if param.opts else param.name),
+            "kind": _param_kind(param),
+            "type": _param_type_name(param),
+            "required": bool(param.required),
+        }
+        if isinstance(param.type, click.Choice):
+            d["values"] = list(param.type.choices)
+        default = param.default
+        if default is not None and default is not False:
+            try:
+                json.dumps(default)
+                d["default"] = default
+            except TypeError:
+                pass
+        help_text = getattr(param, "help", None)
+        if help_text:
+            d["description"] = help_text
+        return d
+
+    # Two-pass walk: collect every (name, cmd_info) pair bucketed by callback
+    # identity, then pick the first visible (non-hidden) entry as the primary
+    # and demote the rest to aliases. This avoids the ordering bug where a
+    # hidden alias registered first steals the primary slot.
+    from dataclasses import dataclass
+
+    @dataclass
+    class _CmdRef:
+        name: str
+        cmd_info: Any
+        hidden: bool
+
+    buckets: dict[int, list[_CmdRef]] = {}
+
+    def _collect(typer_app: typer.Typer, prefix: str = "") -> None:
+        for cmd_info in typer_app.registered_commands:
+            name = f"{prefix} {cmd_info.name or cmd_info.callback.__name__}".strip()
+            buckets.setdefault(id(cmd_info.callback), []).append(
+                _CmdRef(name=name, cmd_info=cmd_info, hidden=getattr(cmd_info, "hidden", False))
+            )
+        for group in typer_app.registered_groups:
+            _collect(group.typer_instance, prefix=f"{prefix} {group.name}".strip())
+
+    _collect(app)
+
+    aliases: dict[str, list[str]] = {}
+
+    for _, refs in buckets.items():
+        visible = [r for r in refs if not r.hidden]
+        primary = visible[0] if visible else refs[0]
+        for other in refs:
+            if other is primary:
+                continue
+            aliases.setdefault(primary.name, []).append(other.name)
+
+        cmd_info = primary.cmd_info
+        try:
+            click_cmd = typer.main.get_command_from_info(
+                cmd_info,
+                pretty_exceptions_short=True,
+                rich_markup_mode=None,
+            )
+        except TypeError:
+            click_cmd = typer.main.get_command_from_info(cmd_info)
+
+        args: list[dict] = []
+        options: list[dict] = []
+        for param in click_cmd.params:
+            pd = _param_to_dict(param)
+            (args if pd["kind"] == "positional" else options).append(pd)
+
+        manifest["commands"][primary.name] = {
+            "description": (cmd_info.help or click_cmd.help or "").strip(),
+            "args": args,
+            "options": options,
+        }
+    # Attach discovered aliases to each primary command entry
+    for primary, alts in aliases.items():
+        entry = manifest["commands"].get(primary)
+        if entry is not None:
+            entry["aliases"] = alts
+    typer.echo(json.dumps(manifest, indent=2))
+
+
+@app.command("doctor")
+def doctor(
+    ctx: typer.Context,
+    deep: bool = typer.Option(
+        False,
+        "--deep",
+        help=(
+            "Run live probes (hits Instagram and pypi.org). Can cost rate-limit "
+            "quota and, for the private backend, may look like a login check to IG. "
+            "Off by default."
+        ),
+    ),
+):
+    """Diagnose environment and session health. Use the global `--account` to scope."""
+    from clinstagram.commands.doctor_cmd import run_doctor
+
+    run_doctor(ctx, deep=deep, account=None)
+
+
+@app.command("update")
+def update(
+    ctx: typer.Context,
+    check: bool = typer.Option(
+        False,
+        "--check",
+        help="Check-only (redundant — this is the default). Kept for clarity.",
+    ),
+    apply: bool = typer.Option(
+        False,
+        "--apply",
+        help="Attempt to self-upgrade via pip. Only works for plain pip installs.",
+    ),
+    yes: bool = typer.Option(
+        False,
+        "--yes",
+        "-y",
+        help="Skip the TTY confirmation when used with --apply. Required in --json mode.",
+    ),
+    pre: bool = typer.Option(
+        False,
+        "--pre",
+        help="Consider pre-release versions on PyPI (normally filtered out).",
+    ),
+):
+    """Check for clinstagram updates. Default is check-only; use --apply --yes to upgrade."""
+    from clinstagram.commands.update_cmd import run_update
+
+    run_update(ctx, check=check, apply=apply, yes=yes, pre=pre)
+
+
 # Lazy-load command groups to avoid importing instagrapi/httpx at startup.
-# This cuts cold-start latency by ~300-500ms (measured: --help goes from ~600ms to ~100ms).
 def _lazy_register() -> None:
     from clinstagram.commands.analytics import analytics_app
     from clinstagram.commands.auth import auth_app
@@ -77,9 +329,9 @@ def _lazy_register() -> None:
     from clinstagram.commands.like import like_app
     from clinstagram.commands.media import media_app
     from clinstagram.commands.post import post_app
+    from clinstagram.commands.skill_install import skill_app
     from clinstagram.commands.story import story_app
     from clinstagram.commands.user import user_app
-    from clinstagram.commands.skill_install import skill_app
 
     app.add_typer(auth_app, name="auth")
     app.add_typer(config_app, name="config")
@@ -97,3 +349,7 @@ def _lazy_register() -> None:
 
 
 _lazy_register()
+
+
+if __name__ == "__main__":
+    app()

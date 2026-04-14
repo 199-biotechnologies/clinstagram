@@ -178,6 +178,9 @@ clinstagram --json user posts @username --limit 10
 ### Auth & Config
 
 ```bash
+clinstagram agent-info               # Machine-readable manifest (ACF)
+clinstagram doctor                   # Health check (sessions, environment)
+clinstagram update --check           # Check for CLI updates
 clinstagram auth status              # Show configured backends
 clinstagram auth probe               # Live-check token validity
 clinstagram auth login -u user       # Private API login

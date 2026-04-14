@@ -50,6 +50,9 @@ clinstagram auth login         # Private API (username/password/2FA via instagra
 
 | Group | Commands | Notes |
 |-------|----------|-------|
+| `agent-info` | `agent-info`, `info` (alias) | Bare JSON manifest (ACF compliant) |
+| `doctor` | `doctor [--deep] [--account NAME]` | Check environment and session health |
+| `update` | `update [--check] [--yes] [--pre]` | Check for or perform clinstagram updates |
 | `auth` | `status`, `login`, `connect-ig`, `connect-fb`, `probe`, `logout` | `status` is configured-only; `probe` is live validation |
 | `post` | `photo`, `video`, `reel`, `carousel` | Local write media requires `private-enabled` or a public URL |
 | `dm` | `inbox`, `thread ID\|@user`, `send @user "text"`, `send-media`, `search` | Cold DMs = private API only; numeric target = reply |
