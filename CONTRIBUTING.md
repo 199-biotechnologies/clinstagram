@@ -5,7 +5,7 @@ Thanks for your interest in contributing. Here is how to get started.
 ## Setup
 
 ```bash
-git clone https://github.com/199-biotechnologies/clinstagram.git
+git clone https://github.com/paperfoot/clinstagram.git
 cd clinstagram
 pip install -e ".[dev]"
 ```

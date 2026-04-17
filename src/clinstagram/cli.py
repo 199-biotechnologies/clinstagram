@@ -76,7 +76,7 @@ def agent_info():
         "name": "clinstagram",
         "version": __version__,
         "description": "Hybrid Instagram CLI for agents (Graph API + instagrapi)",
-        "homepage": "https://github.com/199-biotechnologies/clinstagram",
+        "homepage": "https://github.com/paperfoot/clinstagram",
         "commands": {},
         "global_flags": {
             "--json": {"description": "Output as JSON (place before subcommand)", "type": "boolean"},

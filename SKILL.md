@@ -4,7 +4,7 @@ description: >
   Full Instagram CLI — posting, DMs, stories, analytics, followers, hashtags, likes, comments.
   Supports Meta Graph API (official, safe) and private API (full features).
   Three compliance modes: official-only, hybrid-safe, private-enabled.
-metadata: {"openclaw": {"requires": {"bins": ["clinstagram"], "env": ["CLINSTAGRAM_CONFIG_DIR"]}, "primaryEnv": "CLINSTAGRAM_CONFIG_DIR", "emoji": "📸", "homepage": "https://github.com/199-biotechnologies/clinstagram", "install": [{"pip": "clinstagram"}]}}
+metadata: {"openclaw": {"requires": {"bins": ["clinstagram"], "env": ["CLINSTAGRAM_CONFIG_DIR"]}, "primaryEnv": "CLINSTAGRAM_CONFIG_DIR", "emoji": "📸", "homepage": "https://github.com/paperfoot/clinstagram", "install": [{"pip": "clinstagram"}]}}
 ---
 
 # clinstagram
