@@ -117,3 +117,21 @@ class Backend(ABC):
     # Media download
     @abstractmethod
     def media_download(self, media_ref: str, output_dir: str = "") -> dict: ...
+
+    # Saved posts / collections
+    @abstractmethod
+    def saved_list(
+        self,
+        collection: str = "",
+        media_types: list[int] | None = None,
+        amount: int = 50,
+    ) -> list[dict]: ...
+
+    @abstractmethod
+    def saved_download(
+        self,
+        output_dir: str = "",
+        collection: str = "",
+        media_types: list[int] | None = None,
+        amount: int = 50,
+    ) -> dict: ...

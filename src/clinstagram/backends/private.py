@@ -610,3 +610,120 @@ class PrivateBackend(Backend):
             }
         except Exception as exc:
             raise _wrap_error("media_download", exc)
+
+    # ------------------------------------------------------------------
+    # Saved posts / collections
+    # ------------------------------------------------------------------
+
+    def _resolve_collection_pk(self, collection: str) -> str:
+        """Resolve a collection reference to its pk.
+
+        Empty string → the Instagram default "All Posts" collection (which
+        contains every saved post). Otherwise match by exact name or by pk.
+        """
+        collections = self._cl.collections()
+        if not collection:
+            # The default "All Posts" collection holds everything saved.
+            for c in collections:
+                if c.name == "All Posts":
+                    return str(c.id)
+            # Some locales name it differently; fall back to the collection
+            # with the largest media_count if no "All Posts" label exists.
+            if collections:
+                biggest = max(collections, key=lambda c: c.media_count or 0)
+                return str(biggest.id)
+            raise ValueError("No saved collections found on this account.")
+
+        # Exact name match (case-insensitive)
+        for c in collections:
+            if c.name.lower() == collection.lower():
+                return str(c.id)
+        # Try interpreting the argument as a pk directly
+        if collection.isdigit():
+            return collection
+        raise ValueError(f"Saved collection not found: {collection!r}")
+
+    def saved_list(
+        self,
+        collection: str = "",
+        media_types: list[int] | None = None,
+        amount: int = 50,
+    ) -> list[dict]:
+        """List media in a saved collection (default: all saved posts).
+
+        media_types filters by instagrapi media_type:
+          1 = photo, 2 = video, 8 = album/carousel.
+        """
+        try:
+            collection_pk = self._resolve_collection_pk(collection)
+            medias = self._cl.collection_medias(collection_pk, amount=amount)
+            if media_types is not None:
+                medias = [m for m in medias if m.media_type in media_types]
+            return [_media_to_dict(m) for m in medias]
+        except Exception as exc:
+            raise _wrap_error("saved_list", exc)
+
+    def saved_download(
+        self,
+        output_dir: str = "",
+        collection: str = "",
+        media_types: list[int] | None = None,
+        amount: int = 50,
+    ) -> dict:
+        """Download media from a saved collection (default: all saved posts).
+
+        Videos (media_type 2) and albums/carousels (8) are downloaded in full;
+        photos (1) are skipped unless explicitly requested via media_types.
+        Returns a manifest of every file written.
+        """
+        from pathlib import Path
+
+        try:
+            folder = Path(output_dir) if output_dir else Path.cwd()
+            folder.mkdir(parents=True, exist_ok=True)
+
+            # Default to video + album only; pass media_types to override.
+            effective_types = media_types if media_types is not None else [2, 8]
+
+            items = self.saved_list(
+                collection=collection,
+                media_types=effective_types,
+                amount=amount,
+            )
+
+            downloaded: list[dict] = []
+            for item in items:
+                media_pk = int(item["id"])
+                info = self._cl.media_info(media_pk)
+                media_type = info.media_type  # 1=photo, 2=video, 8=album
+                files: list[str] = []
+                if media_type == 1:
+                    path = self._cl.photo_download(media_pk, folder=folder)
+                    files.append(str(path))
+                elif media_type == 2:
+                    path = self._cl.video_download(media_pk, folder=folder)
+                    files.append(str(path))
+                elif media_type == 8:
+                    paths = self._cl.album_download(media_pk, folder=folder)
+                    files.extend(str(p) for p in paths)
+                else:
+                    continue
+                if files:
+                    downloaded.append(
+                        {
+                            "media_id": item["id"],
+                            "code": item.get("code"),
+                            "media_type": media_type,
+                            "files": files,
+                        }
+                    )
+
+            return {
+                "collection": collection or "All Posts",
+                "output_dir": str(folder.resolve()),
+                "requested_media_types": effective_types,
+                "count": len(downloaded),
+                "items": downloaded,
+            }
+        except Exception as exc:
+            raise _wrap_error("saved_download", exc)

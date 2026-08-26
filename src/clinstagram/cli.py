@@ -329,6 +329,7 @@ def _lazy_register() -> None:
     from clinstagram.commands.like import like_app
     from clinstagram.commands.media import media_app
     from clinstagram.commands.post import post_app
+    from clinstagram.commands.saved import saved_app
     from clinstagram.commands.skill_install import skill_app
     from clinstagram.commands.story import story_app
     from clinstagram.commands.user import user_app
@@ -345,6 +346,7 @@ def _lazy_register() -> None:
     app.add_typer(like_app, name="like")
     app.add_typer(hashtag_app, name="hashtag")
     app.add_typer(media_app, name="media")
+    app.add_typer(saved_app, name="saved")
     app.add_typer(skill_app, name="skill")
 
 

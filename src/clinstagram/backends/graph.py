@@ -600,3 +600,26 @@ class GraphBackend(Backend):
             "The Graph API cannot download media (CDN URLs require an authenticated "
             "session). Use --backend private for this feature."
         )
+
+    def saved_list(
+        self,
+        collection: str = "",
+        media_types: list[int] | None = None,
+        amount: int = 50,
+    ) -> list[dict]:
+        raise NotImplementedError(
+            "Saved posts and collections are only available through the private API. "
+            "Use --backend private for this feature."
+        )
+
+    def saved_download(
+        self,
+        output_dir: str = "",
+        collection: str = "",
+        media_types: list[int] | None = None,
+        amount: int = 50,
+    ) -> dict:
+        raise NotImplementedError(
+            "Saved posts and collections are only available through the private API. "
+            "Use --backend private for this feature."
+        )

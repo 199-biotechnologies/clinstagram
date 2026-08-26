@@ -51,6 +51,9 @@ class Feature(str, Enum):
     HASHTAG_RECENT = "hashtag_recent"
     # Media
     MEDIA_DOWNLOAD = "media_download"
+    # Saved posts / collections
+    SAVED_LIST = "saved_list"
+    SAVED_DOWNLOAD = "saved_download"
 
 
 CAPABILITY_MATRIX: dict[str, set[Feature]] = {
@@ -85,6 +88,7 @@ READ_ONLY_FEATURES: set[Feature] = {
     Feature.USER_INFO, Feature.USER_SEARCH, Feature.USER_POSTS,
     Feature.HASHTAG_TOP, Feature.HASHTAG_RECENT,
     Feature.MEDIA_DOWNLOAD,
+    Feature.SAVED_LIST, Feature.SAVED_DOWNLOAD,
 }
 
 GROWTH_ACTIONS: set[Feature] = {
